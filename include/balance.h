@@ -67,6 +67,18 @@ float balance_get_angle();
 float balance_get_gyro_rate();
 
 /**
+ * balance_set_pid()
+ * Sets PID gains and target balance angle trim in real-time.
+ */
+void balance_set_pid(float kp, float ki, float kd, float targetTrim);
+
+/**
+ * balance_get_pid()
+ * Retrieves current PID gains and target balance angle trim.
+ */
+void balance_get_pid(float &kp, float &ki, float &kd, float &targetTrim);
+
+/**
  * balance_is_fallen()
  * @return true if |angle| > BALANCE_FALLEN_ANGLE.
  */

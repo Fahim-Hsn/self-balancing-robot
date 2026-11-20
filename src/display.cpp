@@ -483,8 +483,10 @@ void display_show_text(const char* line1, const char* line2) {
 void display_update() {
     unsigned long now = millis();
 
-    // Frame-rate throttle: max 20 fps
-    if (now - _lastDrawMs < FRAME_MS) return;
+    // Frame-rate throttle: 120 ms (~8 fps) keeps eye expressions smooth while
+    // giving over 85% of the shared I2C bus bandwidth to the MPU-6050 balance loop.
+    uint16_t throttleMs = (_showingModeInfo) ? 60 : 120;
+    if (now - _lastDrawMs < throttleMs) return;
     _lastDrawMs = now;
 
     if (_showingModeInfo && (now - _modeInfoStartMs >= DISPLAY_MODE_SHOW_MS)) {

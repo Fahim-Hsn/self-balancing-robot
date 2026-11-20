@@ -35,7 +35,11 @@ static struct {
     bool        buzzEnabled;
     int         motorL;
     int         motorR;
-} g_telem = {0.0f, -1.0f, "EYE_NORMAL", MODE_BALANCE_SEGWAY, true, true, 0, 0};
+    float       kp;
+    float       ki;
+    float       kd;
+    float       trim;
+} g_telem = {0.0f, -1.0f, "EYE_NORMAL", MODE_BALANCE_SEGWAY, true, true, 0, 0, 34.0f, 0.6f, 2.0f, 0.0f};
 
 // ============================================================
 // EMBEDDED HTML DASHBOARD
@@ -303,6 +307,51 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
     <button class="btn-action" onclick="triggerCalibrate()">Zero / Calibrate Upright Balance</button>
   </div>
 
+  <div class="card">
+    <div class="card-title">Live Balance PID & Angle Trim</div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
+      Adjust PID power, damping and angle trim in real-time.
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px">
+        <span>Balance Angle Trim:</span>
+        <strong id="trimVal">0.0&deg;</strong>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-action" style="flex:1;padding:8px 4px;margin-top:0" onclick="adjustTrim(-0.2)">&larr; Back 0.2&deg;</button>
+        <button class="btn-action" style="flex:1;padding:8px 4px;margin-top:0;background:#334155" onclick="setTrim(0.0)">0.0&deg;</button>
+        <button class="btn-action" style="flex:1;padding:8px 4px;margin-top:0" onclick="adjustTrim(0.2)">Fwd 0.2&deg; &rarr;</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
+        <span>Kp (Stiffness / Power):</span>
+        <strong id="kpVal">34.0</strong>
+      </div>
+      <input type="range" id="kpSlider" min="10" max="75" step="0.5" value="34" oninput="onPidInput()">
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
+        <span>Kd (Damping / Smoothness):</span>
+        <strong id="kdVal">2.0</strong>
+      </div>
+      <input type="range" id="kdSlider" min="0" max="5.0" step="0.1" value="2.0" oninput="onPidInput()">
+    </div>
+
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
+        <span>Ki (Steady Drift Fix):</span>
+        <strong id="kiVal">0.60</strong>
+      </div>
+      <input type="range" id="kiSlider" min="0" max="3.0" step="0.05" value="0.6" oninput="onPidInput()">
+    </div>
+
+    <button class="btn-action" style="margin-top:0;background:var(--accent)" onclick="sendPidNow()">Apply PID Settings</button>
+  </div>
+
 </div>
 
 <script>
@@ -347,6 +396,34 @@ function triggerCalibrate() {
   if (confirm('Hold the robot vertically upright at its balance point, then press OK.')) {
     sendImmediate({ calibrate: true });
   }
+}
+
+let currentTrim = 0.0;
+let pidLoaded = false;
+
+function adjustTrim(delta) {
+  currentTrim = Math.round((currentTrim + delta) * 10) / 10;
+  document.getElementById('trimVal').innerHTML = currentTrim.toFixed(1) + '&deg;';
+  sendPidNow();
+}
+
+function setTrim(val) {
+  currentTrim = val;
+  document.getElementById('trimVal').innerHTML = currentTrim.toFixed(1) + '&deg;';
+  sendPidNow();
+}
+
+function onPidInput() {
+  document.getElementById('kpVal').textContent = parseFloat(document.getElementById('kpSlider').value).toFixed(1);
+  document.getElementById('kdVal').textContent = parseFloat(document.getElementById('kdSlider').value).toFixed(1);
+  document.getElementById('kiVal').textContent = parseFloat(document.getElementById('kiSlider').value).toFixed(2);
+}
+
+function sendPidNow() {
+  const kp = parseFloat(document.getElementById('kpSlider').value);
+  const kd = parseFloat(document.getElementById('kdSlider').value);
+  const ki = parseFloat(document.getElementById('kiSlider').value);
+  sendImmediate({ kp: kp, kd: kd, ki: ki, trim: currentTrim });
 }
 
 async function sendImmediate(extra) {
@@ -537,6 +614,18 @@ async function pollTelemetry() {
     state.expression = d.expression || 'EYE_NORMAL';
     state.connected = true;
     document.getElementById('connDot').classList.add('on');
+
+    if (!pidLoaded && d.kp !== undefined) {
+      pidLoaded = true;
+      document.getElementById('kpSlider').value = d.kp;
+      document.getElementById('kdSlider').value = d.kd;
+      document.getElementById('kiSlider').value = d.ki;
+      currentTrim = d.trim || 0.0;
+      document.getElementById('kpVal').textContent = d.kp.toFixed(1);
+      document.getElementById('kdVal').textContent = d.kd.toFixed(1);
+      document.getElementById('kiVal').textContent = d.ki.toFixed(2);
+      document.getElementById('trimVal').innerHTML = currentTrim.toFixed(1) + '&deg;';
+    }
   } catch (_) {
     state.connected = false;
     document.getElementById('connDot').classList.remove('on');
@@ -796,7 +885,8 @@ void webserver_set_telemetry(float angle, float distance,
                               const char* expression,
                               RobotMode mode,
                               bool obsEnabled, bool buzzEnabled,
-                              int motorL, int motorR)
+                              int motorL, int motorR,
+                              float kp, float ki, float kd, float trim)
 {
     g_telem.angle       = angle;
     g_telem.distance    = distance;
@@ -805,6 +895,10 @@ void webserver_set_telemetry(float angle, float distance,
     g_telem.buzzEnabled = buzzEnabled;
     g_telem.motorL      = motorL;
     g_telem.motorR      = motorR;
+    g_telem.kp          = kp;
+    g_telem.ki          = ki;
+    g_telem.kd          = kd;
+    g_telem.trim        = trim;
     if (expression) {
         strncpy(g_telem.expression, expression, sizeof(g_telem.expression) - 1);
         g_telem.expression[sizeof(g_telem.expression) - 1] = '\0';
@@ -820,11 +914,11 @@ static void handleRoot() {
 }
 
 static void handleStatus() {
-    char buf[256];
+    char buf[384];
     snprintf(buf, sizeof(buf),
         "{\"angle\":%.2f,\"distance\":%.1f,\"expression\":\"%s\","
         "\"mode\":%d,\"obsEnabled\":%s,\"buzzerEnabled\":%s,"
-        "\"motorL\":%d,\"motorR\":%d}",
+        "\"motorL\":%d,\"motorR\":%d,\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"trim\":%.2f}",
         g_telem.angle,
         g_telem.distance,
         g_telem.expression,
@@ -832,7 +926,11 @@ static void handleStatus() {
         g_telem.obsEnabled  ? "true" : "false",
         g_telem.buzzEnabled ? "true" : "false",
         g_telem.motorL,
-        g_telem.motorR
+        g_telem.motorR,
+        g_telem.kp,
+        g_telem.ki,
+        g_telem.kd,
+        g_telem.trim
     );
     httpServer.sendHeader("Access-Control-Allow-Origin", "*");
     httpServer.send(200, "application/json", buf);
@@ -859,6 +957,14 @@ static void handleControl() {
         while (idx < (int)body.length() && body[idx] == ' ') idx++;
         return body.substring(idx).startsWith("true");
     };
+    auto getFloat = [&](const char* key, float def) -> float {
+        String k = "\""; k += key; k += "\":";
+        int idx = body.indexOf(k);
+        if (idx < 0) return def;
+        idx += k.length();
+        while (idx < (int)body.length() && body[idx] == ' ') idx++;
+        return body.substring(idx).toFloat();
+    };
 
     if (body.indexOf("\"joyX\":") >= 0) {
         g_cmd->joyX = constrain(getInt("joyX"), -100, 100);
@@ -878,6 +984,13 @@ static void handleControl() {
     }
     if (body.indexOf("\"calibrate\":") >= 0) {
         g_cmd->triggerCalib = getBool("calibrate");
+    }
+    if (body.indexOf("\"kp\":") >= 0) {
+        g_cmd->pidKp     = getFloat("kp", 34.0f);
+        g_cmd->pidKi     = getFloat("ki", 0.6f);
+        g_cmd->pidKd     = getFloat("kd", 2.0f);
+        g_cmd->pidTrim   = getFloat("trim", 0.0f);
+        g_cmd->updatePid = true;
     }
     g_cmd->updated = true;
 
@@ -915,6 +1028,11 @@ void webserver_init(WebCommand* cmd) {
         g_cmd->requestedMode = -1;
         g_cmd->invertMotors  = false;
         g_cmd->triggerCalib  = false;
+        g_cmd->updatePid     = false;
+        g_cmd->pidKp         = PID_KP;
+        g_cmd->pidKi         = PID_KI;
+        g_cmd->pidKd         = PID_KD;
+        g_cmd->pidTrim       = 0.0f;
         g_cmd->updated       = false;
     }
 }

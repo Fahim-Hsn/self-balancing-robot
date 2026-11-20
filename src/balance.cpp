@@ -54,11 +54,16 @@ static float s_gyroRate = 0.0f; // Gyro Y rate after scaling (deg/s)
 
 // Timing
 static unsigned long s_lastMicros = 0; // Timestamp of last balance_update()
+static float         s_lastDt     = 0.01f; // Measured dt of last update (seconds)
 
 // PID state
-static float s_pidIntegral  = 0.0f; // Accumulated integral term
-static float s_pidPrevError = 0.0f; // Previous error for derivative
-static bool  s_calibrated   = false; // Calibration status flag
+static float s_pidKp        = PID_KP;
+static float s_pidKi        = PID_KI;
+static float s_pidKd        = PID_KD;
+static float s_targetTrim   = 0.0f;     // Real-time target angle trim offset (degrees)
+static float s_pidIntegral  = 0.0f;     // Accumulated integral term
+static float s_pidPrevError = 0.0f;     // Previous error for derivative
+static bool  s_calibrated   = false;    // Calibration status flag
 
 // -----------------------------------------------------------------------
 // LOW-LEVEL I2C HELPERS
@@ -188,15 +193,17 @@ bool balance_calibrate() {
 void balance_update() {
     if (!s_calibrated) return;
 
-    // Enforce minimum 2 ms, maximum 10 ms interval between updates
+    // Enforce minimum 2 ms interval (~500 Hz max rate)
     unsigned long now = micros();
     unsigned long elapsed = now - s_lastMicros;
 
     if (elapsed < 2000UL) return;
 
-    if (elapsed > 10000UL) elapsed = 10000UL;
+    // Guard against huge step if loop was stalled by WiFi/blocking calls (max 50ms)
+    if (elapsed > 50000UL) elapsed = 50000UL;
     float dt = (float)elapsed * 1e-6f;
     s_lastMicros = now;
+    s_lastDt     = dt;
 
     int16_t acX, acY, acZ, gyX, gyY, gyZ;
     mpu_read_raw(acX, acY, acZ, gyX, gyY, gyZ);
@@ -230,17 +237,15 @@ int balance_compute(float forwardBias) {
     if (forwardBias >  SEGWAY_MAX_TILT) forwardBias =  SEGWAY_MAX_TILT;
     if (forwardBias < -SEGWAY_MAX_TILT) forwardBias = -SEGWAY_MAX_TILT;
 
-    float setpoint = PID_TARGET_ANGLE + forwardBias;
+    float setpoint = PID_TARGET_ANGLE + s_targetTrim + forwardBias;
 
     // Proportional term
     float error = s_angle - setpoint;
 
-    // Determine dt for integral and derivative calculations
-    unsigned long now = micros();
-    float dt = (float)(now - s_lastMicros) * 1e-6f;
-    if (dt <= 0.0f || dt > 0.05f) dt = 0.01f;
+    // Integral term with anti-windup clamping (using actual IMU sample dt)
+    float dt = s_lastDt;
+    if (dt <= 0.001f || dt > 0.05f) dt = 0.01f;
 
-    // Integral term with anti-windup clamping
     s_pidIntegral += error * dt;
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
     if (s_pidIntegral < -PID_INTEGRAL_MAX) s_pidIntegral = -PID_INTEGRAL_MAX;
@@ -249,10 +254,10 @@ int balance_compute(float forwardBias) {
     // Gyroscope provides instantaneous angular rate d(theta)/dt with zero numerical differentiation noise
     float derivative = s_gyroRate;
 
-    // Compute PID total output
-    float output = (PID_KP * error)
-                 + (PID_KD * derivative)
-                 + (PID_KI * s_pidIntegral);
+    // Compute PID total output using live gains
+    float output = (s_pidKp * error)
+                 + (s_pidKd * derivative)
+                 + (s_pidKi * s_pidIntegral);
 
     // Static friction compensation: add minimum motor starting torque
     if (output > 0.0f) {
@@ -274,6 +279,20 @@ float balance_get_angle() {
 
 float balance_get_gyro_rate() {
     return s_gyroRate;
+}
+
+void balance_set_pid(float kp, float ki, float kd, float targetTrim) {
+    s_pidKp      = kp;
+    s_pidKi      = ki;
+    s_pidKd      = kd;
+    s_targetTrim = targetTrim;
+}
+
+void balance_get_pid(float &kp, float &ki, float &kd, float &targetTrim) {
+    kp         = s_pidKp;
+    ki         = s_pidKi;
+    kd         = s_pidKd;
+    targetTrim = s_targetTrim;
 }
 
 bool balance_is_fallen() {

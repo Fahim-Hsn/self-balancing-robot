@@ -94,7 +94,8 @@ void setup() {
 
     // 2. Start I2C bus shared by MPU-6050 and OLED
     Wire.begin(PIN_SDA, PIN_SCL);
-    Serial.println("[I2C] Bus started");
+    Wire.setClock(400000); // 400 kHz Fast I2C for fast MPU-6050 reading & OLED refresh
+    Serial.println("[I2C] Bus started at 400kHz");
 
     // 3. Initialise OLED display module
     display_init();
@@ -233,6 +234,13 @@ void loop() {
         display_show_text("Calibrated!", "Balance Set");
         delay(600);
         Serial.println("[Web] Balance recalibrated to upright!");
+    }
+
+    if (g_webCmd.updatePid) {
+        g_webCmd.updatePid = false;
+        balance_set_pid(g_webCmd.pidKp, g_webCmd.pidKi, g_webCmd.pidKd, g_webCmd.pidTrim);
+        Serial.printf("[Web] Live PID Set: Kp=%.1f, Ki=%.2f, Kd=%.1f, Trim=%.1f\n",
+                      g_webCmd.pidKp, g_webCmd.pidKi, g_webCmd.pidKd, g_webCmd.pidTrim);
     }
 
     if (g_showModeInfo && (now - g_modeInfoTimer) >= DISPLAY_MODE_SHOW_MS) {
@@ -417,6 +425,9 @@ void loop() {
     // ---------------------------------------------------------
     // 7. Update telemetry for GET /status endpoint
     // ---------------------------------------------------------
+    float curKp, curKi, curKd, curTrim;
+    balance_get_pid(curKp, curKi, curKd, curTrim);
+
     webserver_set_telemetry(
         angle,
         dist,
@@ -425,7 +436,11 @@ void loop() {
         g_obstacleEnabled,
         g_webCmd.buzzerEnabled,
         motorL,
-        motorR
+        motorR,
+        curKp,
+        curKi,
+        curKd,
+        curTrim
     );
 
     // ---------------------------------------------------------

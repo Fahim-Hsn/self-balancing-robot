@@ -30,6 +30,11 @@ struct WebCommand {
     int  requestedMode;  // -1 = no change, 0 = MODE_BALANCE_SEGWAY, 1 = MODE_REGULAR_DRIVE
     bool invertMotors;   // true = invert motor direction
     bool triggerCalib;   // true = trigger recalibration
+    bool updatePid;      // true = new PID settings received
+    float pidKp;         // Proportional gain
+    float pidKi;         // Integral gain
+    float pidKd;         // Derivative gain
+    float pidTrim;       // Target balance angle trim (degrees)
     bool updated;        // true = new command received
 };
 
@@ -67,18 +72,10 @@ bool webserver_is_connected();
 /**
  * webserver_set_telemetry()
  * Updates the telemetry data returned by GET /status.
- *
- * @param angle        Current pitch angle (degrees)
- * @param distance     Ultrasonic distance (cm)
- * @param expression   Eye expression name string (e.g. "EYE_HAPPY")
- * @param mode         Current RobotMode
- * @param obsEnabled   Whether obstacle avoidance is on
- * @param buzzEnabled  Whether buzzer is enabled
- * @param motorL       Left motor speed (-255 to 255)
- * @param motorR       Right motor speed (-255 to 255)
  */
 void webserver_set_telemetry(float angle, float distance,
                               const char* expression,
                               RobotMode mode,
                               bool obsEnabled, bool buzzEnabled,
-                              int motorL, int motorR);
+                              int motorL, int motorR,
+                              float kp, float ki, float kd, float trim);
