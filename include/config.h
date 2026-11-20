@@ -99,9 +99,9 @@ enum EyeExpression {
  * - Sluggish?       Increase KP
  * - Slow drift?     Increase KI slightly
  */
-#define PID_KP            34.0f   // Proportional gain (tuned for N20 motors + chassis)
-#define PID_KI             0.6f   // Integral gain for steady-state offset compensation
-#define PID_KD             2.0f   // Derivative gain (from gyro rate damping)
+#define PID_KP            36.0f   // Proportional gain (tuned for N20 motors + chassis)
+#define PID_KI             0.5f   // Integral gain for steady-state offset compensation
+#define PID_KD             2.2f   // Derivative gain (from gyro rate damping)
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
 #define PID_OUTPUT_MAX    240.0f  // Max motor output
@@ -121,7 +121,7 @@ enum EyeExpression {
 // MOTOR LIMITS
 // ------------------------------------------------
 #define MOTOR_MAX_SPEED   255    // Maximum PWM (0 - 255)
-#define MOTOR_MIN_SPEED    35    // Static friction compensation: starting PWM offset
+#define MOTOR_MIN_SPEED    50    // Static friction compensation: starting PWM offset
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)

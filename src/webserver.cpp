@@ -39,7 +39,8 @@ static struct {
     float       ki;
     float       kd;
     float       trim;
-} g_telem = {0.0f, -1.0f, "EYE_NORMAL", MODE_BALANCE_SEGWAY, true, true, 0, 0, 34.0f, 0.6f, 2.0f, 0.0f};
+    float       minSpeed;
+} g_telem = {0.0f, -1.0f, "EYE_NORMAL", MODE_BALANCE_SEGWAY, true, true, 0, 0, 36.0f, 0.5f, 2.2f, 0.0f, 50.0f};
 
 // ============================================================
 // EMBEDDED HTML DASHBOARD
@@ -328,25 +329,33 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Kp (Stiffness / Power):</span>
-        <strong id="kpVal">34.0</strong>
+        <strong id="kpVal">36.0</strong>
       </div>
-      <input type="range" id="kpSlider" min="10" max="75" step="0.5" value="34" oninput="onPidInput()">
+      <input type="range" id="kpSlider" min="10" max="80" step="0.5" value="36" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Kd (Damping / Smoothness):</span>
-        <strong id="kdVal">2.0</strong>
+        <strong id="kdVal">2.2</strong>
       </div>
-      <input type="range" id="kdSlider" min="0" max="5.0" step="0.1" value="2.0" oninput="onPidInput()">
+      <input type="range" id="kdSlider" min="0" max="5.0" step="0.1" value="2.2" oninput="onPidInput()">
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
+        <span>Ki (Drift / Offset Fix):</span>
+        <strong id="kiVal">0.50</strong>
+      </div>
+      <input type="range" id="kiSlider" min="0" max="3.0" step="0.05" value="0.5" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
-        <span>Ki (Steady Drift Fix):</span>
-        <strong id="kiVal">0.60</strong>
+        <span>Min Motor Torque (Deadband):</span>
+        <strong id="minSpdVal">50</strong>
       </div>
-      <input type="range" id="kiSlider" min="0" max="3.0" step="0.05" value="0.6" oninput="onPidInput()">
+      <input type="range" id="minSpdSlider" min="20" max="80" step="1" value="50" oninput="onPidInput()">
     </div>
 
     <button class="btn-action" style="margin-top:0;background:var(--accent)" onclick="sendPidNow()">Apply PID Settings</button>
@@ -417,13 +426,15 @@ function onPidInput() {
   document.getElementById('kpVal').textContent = parseFloat(document.getElementById('kpSlider').value).toFixed(1);
   document.getElementById('kdVal').textContent = parseFloat(document.getElementById('kdSlider').value).toFixed(1);
   document.getElementById('kiVal').textContent = parseFloat(document.getElementById('kiSlider').value).toFixed(2);
+  document.getElementById('minSpdVal').textContent = parseInt(document.getElementById('minSpdSlider').value);
 }
 
 function sendPidNow() {
   const kp = parseFloat(document.getElementById('kpSlider').value);
   const kd = parseFloat(document.getElementById('kdSlider').value);
   const ki = parseFloat(document.getElementById('kiSlider').value);
-  sendImmediate({ kp: kp, kd: kd, ki: ki, trim: currentTrim });
+  const minSpd = parseInt(document.getElementById('minSpdSlider').value);
+  sendImmediate({ kp: kp, kd: kd, ki: ki, trim: currentTrim, minSpeed: minSpd });
 }
 
 async function sendImmediate(extra) {
@@ -620,6 +631,10 @@ async function pollTelemetry() {
       document.getElementById('kpSlider').value = d.kp;
       document.getElementById('kdSlider').value = d.kd;
       document.getElementById('kiSlider').value = d.ki;
+      if (d.minSpeed !== undefined) {
+        document.getElementById('minSpdSlider').value = d.minSpeed;
+        document.getElementById('minSpdVal').textContent = parseInt(d.minSpeed);
+      }
       currentTrim = d.trim || 0.0;
       document.getElementById('kpVal').textContent = d.kp.toFixed(1);
       document.getElementById('kdVal').textContent = d.kd.toFixed(1);
@@ -886,7 +901,7 @@ void webserver_set_telemetry(float angle, float distance,
                               RobotMode mode,
                               bool obsEnabled, bool buzzEnabled,
                               int motorL, int motorR,
-                              float kp, float ki, float kd, float trim)
+                              float kp, float ki, float kd, float trim, float minSpeed)
 {
     g_telem.angle       = angle;
     g_telem.distance    = distance;
@@ -899,6 +914,7 @@ void webserver_set_telemetry(float angle, float distance,
     g_telem.ki          = ki;
     g_telem.kd          = kd;
     g_telem.trim        = trim;
+    g_telem.minSpeed    = minSpeed;
     if (expression) {
         strncpy(g_telem.expression, expression, sizeof(g_telem.expression) - 1);
         g_telem.expression[sizeof(g_telem.expression) - 1] = '\0';
@@ -918,7 +934,7 @@ static void handleStatus() {
     snprintf(buf, sizeof(buf),
         "{\"angle\":%.2f,\"distance\":%.1f,\"expression\":\"%s\","
         "\"mode\":%d,\"obsEnabled\":%s,\"buzzerEnabled\":%s,"
-        "\"motorL\":%d,\"motorR\":%d,\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"trim\":%.2f}",
+        "\"motorL\":%d,\"motorR\":%d,\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"trim\":%.2f,\"minSpeed\":%.0f}",
         g_telem.angle,
         g_telem.distance,
         g_telem.expression,
@@ -930,7 +946,8 @@ static void handleStatus() {
         g_telem.kp,
         g_telem.ki,
         g_telem.kd,
-        g_telem.trim
+        g_telem.trim,
+        g_telem.minSpeed
     );
     httpServer.sendHeader("Access-Control-Allow-Origin", "*");
     httpServer.send(200, "application/json", buf);
@@ -986,11 +1003,12 @@ static void handleControl() {
         g_cmd->triggerCalib = getBool("calibrate");
     }
     if (body.indexOf("\"kp\":") >= 0) {
-        g_cmd->pidKp     = getFloat("kp", 34.0f);
-        g_cmd->pidKi     = getFloat("ki", 0.6f);
-        g_cmd->pidKd     = getFloat("kd", 2.0f);
-        g_cmd->pidTrim   = getFloat("trim", 0.0f);
-        g_cmd->updatePid = true;
+        g_cmd->pidKp       = getFloat("kp", 36.0f);
+        g_cmd->pidKi       = getFloat("ki", 0.5f);
+        g_cmd->pidKd       = getFloat("kd", 2.2f);
+        g_cmd->pidTrim     = getFloat("trim", 0.0f);
+        g_cmd->pidMinSpeed = getFloat("minSpeed", 50.0f);
+        g_cmd->updatePid   = true;
     }
     g_cmd->updated = true;
 
@@ -1033,6 +1051,7 @@ void webserver_init(WebCommand* cmd) {
         g_cmd->pidKi         = PID_KI;
         g_cmd->pidKd         = PID_KD;
         g_cmd->pidTrim       = 0.0f;
+        g_cmd->pidMinSpeed   = MOTOR_MIN_SPEED;
         g_cmd->updated       = false;
     }
 }

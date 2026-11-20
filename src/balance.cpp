@@ -57,13 +57,16 @@ static unsigned long s_lastMicros = 0; // Timestamp of last balance_update()
 static float         s_lastDt     = 0.01f; // Measured dt of last update (seconds)
 
 // PID state
-static float s_pidKp        = PID_KP;
-static float s_pidKi        = PID_KI;
-static float s_pidKd        = PID_KD;
-static float s_targetTrim   = 0.0f;     // Real-time target angle trim offset (degrees)
-static float s_pidIntegral  = 0.0f;     // Accumulated integral term
-static float s_pidPrevError = 0.0f;     // Previous error for derivative
-static bool  s_calibrated   = false;    // Calibration status flag
+static float s_pidKp         = PID_KP;
+static float s_pidKi         = PID_KI;
+static float s_pidKd         = PID_KD;
+static float s_targetTrim    = 0.0f;     // Real-time target angle trim offset (degrees)
+static float s_motorMinSpeed = MOTOR_MIN_SPEED; // Starting torque deadband offset
+static float s_pidIntegral   = 0.0f;     // Accumulated integral term
+static float s_pidPrevError  = 0.0f;     // Previous error for derivative
+static float s_wheelSpeed    = 0.0f;     // Filtered wheel speed estimate for velocity damping
+static int   s_lastOutput    = 0;        // Previous motor output command
+static bool  s_calibrated    = false;    // Calibration status flag
 
 // -----------------------------------------------------------------------
 // LOW-LEVEL I2C HELPERS
@@ -188,16 +191,17 @@ bool balance_calibrate() {
 
 // -----------------------------------------------------------------------
 // balance_update()
-// Called every loop iteration. Reads MPU-6050 and updates pitch angle.
+// Called every loop iteration. Reads MPU-6050 and updates pitch angle at 200 Hz.
+// Returns true when a new sample is computed, false otherwise.
 // -----------------------------------------------------------------------
-void balance_update() {
-    if (!s_calibrated) return;
+bool balance_update() {
+    if (!s_calibrated) return false;
 
-    // Enforce minimum 2 ms interval (~500 Hz max rate)
+    // Enforce 5 ms interval (200 Hz fixed control frequency)
     unsigned long now = micros();
     unsigned long elapsed = now - s_lastMicros;
 
-    if (elapsed < 2000UL) return;
+    if (elapsed < 5000UL) return false;
 
     // Guard against huge step if loop was stalled by WiFi/blocking calls (max 50ms)
     if (elapsed > 50000UL) elapsed = 50000UL;
@@ -220,11 +224,12 @@ void balance_update() {
     // angle = alpha * (angle + gyroRate * dt) + (1 - alpha) * accelAngle
     s_angle = COMP_FILTER_ALPHA * (s_angle + s_gyroRate * dt)
             + (1.0f - COMP_FILTER_ALPHA) * accelAngle;
+    return true;
 }
 
 // -----------------------------------------------------------------------
 // balance_compute(float forwardBias)
-// PID controller for balancing vehicle.
+// PID controller for balancing vehicle with velocity damping and deadband.
 // -----------------------------------------------------------------------
 int balance_compute(float forwardBias) {
     // Cut off motors and reset PID if robot has fallen over
@@ -237,21 +242,33 @@ int balance_compute(float forwardBias) {
     if (forwardBias >  SEGWAY_MAX_TILT) forwardBias =  SEGWAY_MAX_TILT;
     if (forwardBias < -SEGWAY_MAX_TILT) forwardBias = -SEGWAY_MAX_TILT;
 
-    float setpoint = PID_TARGET_ANGLE + s_targetTrim + forwardBias;
+    // Velocity feedback (Speed Damping Loop):
+    // Track filtered wheel speed from previous commands to prevent runaway drift
+    s_wheelSpeed = 0.95f * s_wheelSpeed + 0.05f * (float)s_lastOutput;
+
+    // Virtual tilt setpoint: when wheels roll forward, robot commands a slight
+    // backward tilt to brake forward translation and stay stationary in one spot.
+    float speedCorrection = s_wheelSpeed * 0.020f;
+    float setpoint = PID_TARGET_ANGLE + s_targetTrim + forwardBias + speedCorrection;
 
     // Proportional term
     float error = s_angle - setpoint;
 
-    // Integral term with anti-windup clamping (using actual IMU sample dt)
+    // Zone Integral: only accumulate when near upright (|error| < 3.5 deg)
+    // Leaks quickly when swinging to completely avoid integral windup overshoot
     float dt = s_lastDt;
-    if (dt <= 0.001f || dt > 0.05f) dt = 0.01f;
+    if (dt <= 0.001f || dt > 0.05f) dt = 0.005f;
 
-    s_pidIntegral += error * dt;
+    if (fabsf(error) < 3.5f) {
+        s_pidIntegral += error * dt;
+    } else {
+        s_pidIntegral *= 0.90f;
+    }
+
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
     if (s_pidIntegral < -PID_INTEGRAL_MAX) s_pidIntegral = -PID_INTEGRAL_MAX;
 
     // Derivative term: Use calibrated gyroRate directly
-    // Gyroscope provides instantaneous angular rate d(theta)/dt with zero numerical differentiation noise
     float derivative = s_gyroRate;
 
     // Compute PID total output using live gains
@@ -259,17 +276,18 @@ int balance_compute(float forwardBias) {
                  + (s_pidKd * derivative)
                  + (s_pidKi * s_pidIntegral);
 
-    // Static friction compensation: add minimum motor starting torque
+    // Static friction compensation (starting torque offset for N20 gearbox)
     if (output > 0.0f) {
-        output += MOTOR_MIN_SPEED;
+        output += s_motorMinSpeed;
     } else if (output < 0.0f) {
-        output -= MOTOR_MIN_SPEED;
+        output -= s_motorMinSpeed;
     }
 
     // Clamp output within allowable motor limits
     if (output >  PID_OUTPUT_MAX) output =  PID_OUTPUT_MAX;
     if (output <  PID_OUTPUT_MIN) output =  PID_OUTPUT_MIN;
 
+    s_lastOutput = (int)output;
     return (int)output;
 }
 
@@ -281,18 +299,20 @@ float balance_get_gyro_rate() {
     return s_gyroRate;
 }
 
-void balance_set_pid(float kp, float ki, float kd, float targetTrim) {
-    s_pidKp      = kp;
-    s_pidKi      = ki;
-    s_pidKd      = kd;
-    s_targetTrim = targetTrim;
+void balance_set_pid(float kp, float ki, float kd, float targetTrim, float minSpeed) {
+    s_pidKp         = kp;
+    s_pidKi         = ki;
+    s_pidKd         = kd;
+    s_targetTrim    = targetTrim;
+    s_motorMinSpeed = minSpeed;
 }
 
-void balance_get_pid(float &kp, float &ki, float &kd, float &targetTrim) {
+void balance_get_pid(float &kp, float &ki, float &kd, float &targetTrim, float &minSpeed) {
     kp         = s_pidKp;
     ki         = s_pidKi;
     kd         = s_pidKd;
     targetTrim = s_targetTrim;
+    minSpeed   = s_motorMinSpeed;
 }
 
 bool balance_is_fallen() {
@@ -306,4 +326,6 @@ bool balance_is_tilting() {
 void balance_reset_pid() {
     s_pidIntegral  = 0.0f;
     s_pidPrevError = 0.0f;
+    s_wheelSpeed   = 0.0f;
+    s_lastOutput   = 0;
 }

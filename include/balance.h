@@ -37,10 +37,11 @@ bool balance_calibrate();
  * balance_update()
  * Must be called EVERY loop iteration.
  * Reads raw MPU-6050 data and updates the pitch angle via
- * complementary filter. Rate-limited to max 100 Hz (min 2 ms between
- * updates). Internally tracks dt using micros().
+ * complementary filter at 200 Hz (every 5 ms).
+ *
+ * @return true if a new IMU sample was read and processed, false otherwise.
  */
-void balance_update();
+bool balance_update();
 
 /**
  * balance_compute(float forwardBias)
@@ -50,7 +51,7 @@ void balance_update();
  *                     Positive = lean forward = move forward.
  *                     Range: -SEGWAY_MAX_TILT to +SEGWAY_MAX_TILT.
  * @return Motor output clamped to [PID_OUTPUT_MIN, PID_OUTPUT_MAX]
- *         (-220 to 220). Zero if robot is fallen.
+ *         (-240 to 240). Zero if robot is fallen.
  */
 int balance_compute(float forwardBias);
 
@@ -68,15 +69,15 @@ float balance_get_gyro_rate();
 
 /**
  * balance_set_pid()
- * Sets PID gains and target balance angle trim in real-time.
+ * Sets PID gains, target balance angle trim, and min motor starting speed in real-time.
  */
-void balance_set_pid(float kp, float ki, float kd, float targetTrim);
+void balance_set_pid(float kp, float ki, float kd, float targetTrim, float minSpeed);
 
 /**
  * balance_get_pid()
- * Retrieves current PID gains and target balance angle trim.
+ * Retrieves current PID gains, target balance angle trim, and min motor starting speed.
  */
-void balance_get_pid(float &kp, float &ki, float &kd, float &targetTrim);
+void balance_get_pid(float &kp, float &ki, float &kd, float &targetTrim, float &minSpeed);
 
 /**
  * balance_is_fallen()

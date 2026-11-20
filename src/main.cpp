@@ -238,9 +238,9 @@ void loop() {
 
     if (g_webCmd.updatePid) {
         g_webCmd.updatePid = false;
-        balance_set_pid(g_webCmd.pidKp, g_webCmd.pidKi, g_webCmd.pidKd, g_webCmd.pidTrim);
-        Serial.printf("[Web] Live PID Set: Kp=%.1f, Ki=%.2f, Kd=%.1f, Trim=%.1f\n",
-                      g_webCmd.pidKp, g_webCmd.pidKi, g_webCmd.pidKd, g_webCmd.pidTrim);
+        balance_set_pid(g_webCmd.pidKp, g_webCmd.pidKi, g_webCmd.pidKd, g_webCmd.pidTrim, g_webCmd.pidMinSpeed);
+        Serial.printf("[Web] Live PID Set: Kp=%.1f, Ki=%.2f, Kd=%.1f, Trim=%.1f, MinSpd=%.0f\n",
+                      g_webCmd.pidKp, g_webCmd.pidKi, g_webCmd.pidKd, g_webCmd.pidTrim, g_webCmd.pidMinSpeed);
     }
 
     if (g_showModeInfo && (now - g_modeInfoTimer) >= DISPLAY_MODE_SHOW_MS) {
@@ -253,9 +253,9 @@ void loop() {
     obstacle_update();
 
     // ---------------------------------------------------------
-    // 3. Balance IMU reading and complementary filter update
+    // 3. Balance IMU reading (200 Hz fixed control cycle)
     // ---------------------------------------------------------
-    balance_update();
+    bool newSample = balance_update();
 
     float angle = balance_get_angle();
     float dist  = obstacle_get_distance();
@@ -274,29 +274,31 @@ void loop() {
     // ---------------------------------------------------------
     // 5. Motor control by active mode
     // ---------------------------------------------------------
-    int motorL = 0, motorR = 0;
+    static int motorL = 0, motorR = 0;
 
     if (g_mode == MODE_BALANCE_SEGWAY) {
-        // Segway balance mode
-        bool fallen = (fabsf(angle) > BALANCE_FALLEN_ANGLE);
+        // Segway balance mode (synchronised to 200 Hz IMU updates)
+        if (newSample) {
+            bool fallen = (fabsf(angle) > BALANCE_FALLEN_ANGLE);
 
-        if (fallen) {
-            motors_stop();
-            motorL = 0;
-            motorR = 0;
-        } else {
-            float forwardBias = (float)g_webCmd.joyY * SEGWAY_MAX_TILT / 100.0f;
-            int baseSpeed = balance_compute(forwardBias);
-            int turnOffset = g_webCmd.joyX * 40 / 100;
-            motorL = baseSpeed + turnOffset;
-            motorR = baseSpeed - turnOffset;
+            if (fallen) {
+                motors_stop();
+                motorL = 0;
+                motorR = 0;
+            } else {
+                float forwardBias = (float)g_webCmd.joyY * SEGWAY_MAX_TILT / 100.0f;
+                int baseSpeed = balance_compute(forwardBias);
+                int turnOffset = g_webCmd.joyX * 40 / 100;
+                motorL = baseSpeed + turnOffset;
+                motorR = baseSpeed - turnOffset;
 
-            if (g_webCmd.invertMotors) {
-                motorL = -motorL;
-                motorR = -motorR;
+                if (g_webCmd.invertMotors) {
+                    motorL = -motorL;
+                    motorR = -motorR;
+                }
+
+                motors_set(motorL, motorR);
             }
-
-            motors_set(motorL, motorR);
         }
 
     } else {
@@ -425,8 +427,8 @@ void loop() {
     // ---------------------------------------------------------
     // 7. Update telemetry for GET /status endpoint
     // ---------------------------------------------------------
-    float curKp, curKi, curKd, curTrim;
-    balance_get_pid(curKp, curKi, curKd, curTrim);
+    float curKp, curKi, curKd, curTrim, curMinSpeed;
+    balance_get_pid(curKp, curKi, curKd, curTrim, curMinSpeed);
 
     webserver_set_telemetry(
         angle,
@@ -440,7 +442,8 @@ void loop() {
         curKp,
         curKi,
         curKd,
-        curTrim
+        curTrim,
+        curMinSpeed
     );
 
     // ---------------------------------------------------------

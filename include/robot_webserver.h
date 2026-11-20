@@ -35,6 +35,7 @@ struct WebCommand {
     float pidKi;         // Integral gain
     float pidKd;         // Derivative gain
     float pidTrim;       // Target balance angle trim (degrees)
+    float pidMinSpeed;   // Minimum starting speed / deadband compensation
     bool updated;        // true = new command received
 };
 
@@ -78,4 +79,4 @@ void webserver_set_telemetry(float angle, float distance,
                               RobotMode mode,
                               bool obsEnabled, bool buzzEnabled,
                               int motorL, int motorR,
-                              float kp, float ki, float kd, float trim);
+                              float kp, float ki, float kd, float trim, float minSpeed);

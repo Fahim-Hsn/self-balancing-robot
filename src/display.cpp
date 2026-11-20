@@ -117,17 +117,6 @@ static void drawPupils(int dx, int dy, int r) {
 // ------ 1. EYE_NORMAL --------------------------------
 // Standard box eye with centered pupils and blinking
 static void drawNormal() {
-    unsigned long now = millis();
-
-    if (!_blinkActive && now >= _blinkNextMs) {
-        _blinkActive = true;
-        _blinkEndMs  = now + 80;                        // Squish for 80 ms
-        _blinkNextMs = now + 3000 + random(1000);       // Next blink in 3-4 s
-    }
-    if (_blinkActive && now >= _blinkEndMs) {
-        _blinkActive = false;
-    }
-
     drawBothBoxes();
 
     if (_blinkActive) {
@@ -483,15 +472,50 @@ void display_show_text(const char* line1, const char* line2) {
 void display_update() {
     unsigned long now = millis();
 
-    // Frame-rate throttle: 120 ms (~8 fps) keeps eye expressions smooth while
-    // giving over 85% of the shared I2C bus bandwidth to the MPU-6050 balance loop.
-    uint16_t throttleMs = (_showingModeInfo) ? 60 : 120;
-    if (now - _lastDrawMs < throttleMs) return;
-    _lastDrawMs = now;
+    static EyeExpression s_lastDrawnExpr = (EyeExpression)-1;
+    static bool s_lastDrawnModeInfo = false;
+    static bool s_lastDrawnBlink = false;
+    static unsigned long s_lastForcedDraw = 0;
 
     if (_showingModeInfo && (now - _modeInfoStartMs >= DISPLAY_MODE_SHOW_MS)) {
         _showingModeInfo = false;
     }
+
+    // Check blink state for EYE_NORMAL
+    if (_currentExpression == EYE_NORMAL) {
+        if (!_blinkActive && now >= _blinkNextMs) {
+            _blinkActive = true;
+            _blinkEndMs  = now + 80;
+            _blinkNextMs = now + 3000 + random(1000);
+        }
+        if (_blinkActive && now >= _blinkEndMs) {
+            _blinkActive = false;
+        }
+    }
+
+    // Only send I2C data when something visually changes or every 2 seconds
+    bool needsDraw = false;
+    if (_showingModeInfo != s_lastDrawnModeInfo) {
+        needsDraw = true;
+    } else if (!_showingModeInfo) {
+        if (_currentExpression != s_lastDrawnExpr) {
+            needsDraw = true;
+        } else if (_currentExpression == EYE_NORMAL && (_blinkActive != s_lastDrawnBlink)) {
+            needsDraw = true;
+        } else if (now - s_lastForcedDraw >= 2000UL) {
+            needsDraw = true;
+        }
+    }
+
+    if (!needsDraw) return;
+
+    // Minimum 80 ms between redraws
+    if (now - _lastDrawMs < 80) return;
+    _lastDrawMs = now;
+    s_lastForcedDraw = now;
+    s_lastDrawnExpr = _currentExpression;
+    s_lastDrawnModeInfo = _showingModeInfo;
+    s_lastDrawnBlink = _blinkActive;
 
     u8g2.clearBuffer();
     u8g2.setDrawColor(1);
