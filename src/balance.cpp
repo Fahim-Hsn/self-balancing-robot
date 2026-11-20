@@ -65,6 +65,7 @@ static float s_motorMinSpeed = MOTOR_MIN_SPEED; // Starting torque deadband offs
 static float s_pidIntegral   = 0.0f;     // Accumulated integral term
 static float s_pidPrevError  = 0.0f;     // Previous error for derivative
 static float s_wheelSpeed    = 0.0f;     // Filtered wheel speed estimate for velocity damping
+static float s_gyroDamped    = 0.0f;     // Low-pass filtered gyro rate for vibration elimination
 static int   s_lastOutput    = 0;        // Previous motor output command
 static bool  s_calibrated    = false;    // Calibration status flag
 
@@ -268,19 +269,27 @@ int balance_compute(float forwardBias) {
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
     if (s_pidIntegral < -PID_INTEGRAL_MAX) s_pidIntegral = -PID_INTEGRAL_MAX;
 
-    // Derivative term: Use calibrated gyroRate directly
-    float derivative = s_gyroRate;
+    // Derivative term: Low-pass filtered gyro rate eliminates chassis & motor gear vibration chatter
+    s_gyroDamped = 0.70f * s_gyroDamped + 0.30f * s_gyroRate;
+    float derivative = s_gyroDamped;
 
     // Compute PID total output using live gains
     float output = (s_pidKp * error)
                  + (s_pidKd * derivative)
                  + (s_pidKi * s_pidIntegral);
 
-    // Static friction compensation (starting torque offset for N20 gearbox)
-    if (output > 0.0f) {
-        output += s_motorMinSpeed;
-    } else if (output < 0.0f) {
-        output -= s_motorMinSpeed;
+    // Smooth friction compensation:
+    // Continuous soft curve eliminates violent square-wave vibration around zero
+    float absOut = fabsf(output);
+    if (absOut < 1.5f) {
+        output = 0.0f; // Quiet center zone
+    } else {
+        float boost = s_motorMinSpeed * (1.0f - expf(-absOut / 12.0f));
+        if (output > 0.0f) {
+            output += boost;
+        } else {
+            output -= boost;
+        }
     }
 
     // Clamp output within allowable motor limits
@@ -327,5 +336,6 @@ void balance_reset_pid() {
     s_pidIntegral  = 0.0f;
     s_pidPrevError = 0.0f;
     s_wheelSpeed   = 0.0f;
+    s_gyroDamped   = 0.0f;
     s_lastOutput   = 0;
 }

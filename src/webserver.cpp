@@ -40,7 +40,7 @@ static struct {
     float       kd;
     float       trim;
     float       minSpeed;
-} g_telem = {0.0f, -1.0f, "EYE_NORMAL", MODE_BALANCE_SEGWAY, true, true, 0, 0, 36.0f, 0.5f, 2.2f, 0.0f, 50.0f};
+} g_telem = {0.0f, -1.0f, "EYE_NORMAL", MODE_BALANCE_SEGWAY, true, true, 0, 0, 24.0f, 0.3f, 1.2f, 0.0f, 28.0f};
 
 // ============================================================
 // EMBEDDED HTML DASHBOARD
@@ -329,33 +329,33 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Kp (Stiffness / Power):</span>
-        <strong id="kpVal">36.0</strong>
+        <strong id="kpVal">24.0</strong>
       </div>
-      <input type="range" id="kpSlider" min="10" max="80" step="0.5" value="36" oninput="onPidInput()">
+      <input type="range" id="kpSlider" min="5" max="60" step="0.5" value="24" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Kd (Damping / Smoothness):</span>
-        <strong id="kdVal">2.2</strong>
+        <strong id="kdVal">1.2</strong>
       </div>
-      <input type="range" id="kdSlider" min="0" max="5.0" step="0.1" value="2.2" oninput="onPidInput()">
+      <input type="range" id="kdSlider" min="0" max="4.0" step="0.1" value="1.2" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Ki (Drift / Offset Fix):</span>
-        <strong id="kiVal">0.50</strong>
+        <strong id="kiVal">0.30</strong>
       </div>
-      <input type="range" id="kiSlider" min="0" max="3.0" step="0.05" value="0.5" oninput="onPidInput()">
+      <input type="range" id="kiSlider" min="0" max="2.0" step="0.05" value="0.3" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Min Motor Torque (Deadband):</span>
-        <strong id="minSpdVal">50</strong>
+        <strong id="minSpdVal">28</strong>
       </div>
-      <input type="range" id="minSpdSlider" min="20" max="80" step="1" value="50" oninput="onPidInput()">
+      <input type="range" id="minSpdSlider" min="10" max="60" step="1" value="28" oninput="onPidInput()">
     </div>
 
     <button class="btn-action" style="margin-top:0;background:var(--accent)" onclick="sendPidNow()">Apply PID Settings</button>
@@ -1003,11 +1003,11 @@ static void handleControl() {
         g_cmd->triggerCalib = getBool("calibrate");
     }
     if (body.indexOf("\"kp\":") >= 0) {
-        g_cmd->pidKp       = getFloat("kp", 36.0f);
-        g_cmd->pidKi       = getFloat("ki", 0.5f);
-        g_cmd->pidKd       = getFloat("kd", 2.2f);
+        g_cmd->pidKp       = getFloat("kp", 24.0f);
+        g_cmd->pidKi       = getFloat("ki", 0.3f);
+        g_cmd->pidKd       = getFloat("kd", 1.2f);
         g_cmd->pidTrim     = getFloat("trim", 0.0f);
-        g_cmd->pidMinSpeed = getFloat("minSpeed", 50.0f);
+        g_cmd->pidMinSpeed = getFloat("minSpeed", 28.0f);
         g_cmd->updatePid   = true;
     }
     g_cmd->updated = true;

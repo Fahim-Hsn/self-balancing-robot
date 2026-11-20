@@ -99,14 +99,14 @@ enum EyeExpression {
  * - Sluggish?       Increase KP
  * - Slow drift?     Increase KI slightly
  */
-#define PID_KP            36.0f   // Proportional gain (tuned for N20 motors + chassis)
-#define PID_KI             0.5f   // Integral gain for steady-state offset compensation
-#define PID_KD             2.2f   // Derivative gain (from gyro rate damping)
+#define PID_KP            24.0f   // Proportional gain (smooth, prevents violent vibration)
+#define PID_KI             0.3f   // Gentle integral gain for steady-state offset compensation
+#define PID_KD             1.2f   // Derivative gain (from low-pass filtered gyro rate)
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
 #define PID_OUTPUT_MAX    240.0f  // Max motor output
 #define PID_OUTPUT_MIN   -240.0f  // Min motor output
-#define PID_INTEGRAL_MAX   60.0f  // Anti-windup clamp
+#define PID_INTEGRAL_MAX   50.0f  // Anti-windup clamp
 
 // Segway drive: joystick Y maps to this max tilt bias (degrees)
 #define SEGWAY_MAX_TILT    5.0f
@@ -121,7 +121,7 @@ enum EyeExpression {
 // MOTOR LIMITS
 // ------------------------------------------------
 #define MOTOR_MAX_SPEED   255    // Maximum PWM (0 - 255)
-#define MOTOR_MIN_SPEED    50    // Static friction compensation: starting PWM offset
+#define MOTOR_MIN_SPEED    28    // Smooth starting PWM offset (no chatter)
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)
