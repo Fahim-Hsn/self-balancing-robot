@@ -67,16 +67,12 @@ static void applyMotor(uint8_t pin1, uint8_t pin2,
 }
 
 // ------------------------------------------------
-// HELPER: Clamp and apply deadband to raw speed
+// HELPER: Clamp speed to safe limits
 // ------------------------------------------------
 static int filterSpeed(int raw)
 {
     if (raw >  MOTOR_MAX_SPEED) raw =  MOTOR_MAX_SPEED;
     if (raw < -MOTOR_MAX_SPEED) raw = -MOTOR_MAX_SPEED;
-
-    if (raw > 0 && raw < MOTOR_MIN_SPEED)  raw = 0;
-    if (raw < 0 && raw > -MOTOR_MIN_SPEED) raw = 0;
-
     return raw;
 }
 

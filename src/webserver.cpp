@@ -167,6 +167,23 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
   }
   .toggle input:checked ~ .toggle-thumb { left:27px; background:var(--green); box-shadow:var(--glow-green); }
 
+  .mode-btn-row { display:flex; gap:8px; }
+  .btn-mode {
+    flex:1; padding:10px 8px; border:1px solid var(--border); border-radius:10px;
+    background:rgba(255,255,255,.05); color:var(--muted); font-size:.82rem; font-weight:700;
+    cursor:pointer; transition:all .2s; text-align:center;
+  }
+  .btn-mode.active.balance { background:rgba(0,255,136,.18); color:var(--green); border-color:var(--green); box-shadow:var(--glow-green); }
+  .btn-mode.active.drive   { background:rgba(0,207,255,.18); color:var(--blue);  border-color:var(--blue);  box-shadow:var(--glow-blue); }
+
+  .btn-action {
+    display:block; width:100%; padding:10px; margin-top:8px;
+    border:1px solid var(--border); border-radius:8px;
+    background:rgba(255,255,255,.06); color:var(--text); font-size:.82rem; font-weight:600;
+    cursor:pointer; text-align:center; transition:background .15s, border-color .15s;
+  }
+  .btn-action:active { background:rgba(0,255,136,.2); border-color:var(--green); }
+
   .conn-dot {
     width:8px; height:8px; border-radius:50%; background:#333;
     display:inline-block; margin-right:6px; transition:background .3s;
@@ -181,7 +198,15 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
     <h1>RoboBot</h1>
     <div>
       <span class="conn-dot" id="connDot"></span>
-      <span id="modeBadge" class="mode-badge balance">BALANCE</span>
+      <span id="modeBadge" class="mode-badge balance" onclick="toggleRobotMode()" style="cursor:pointer">BALANCE</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Robot Operating Mode (Tap to Switch)</div>
+    <div class="mode-btn-row">
+      <button class="btn-mode active balance" id="btnModeSegway" onclick="setRobotMode(0)">BALANCE (SEGWAY)</button>
+      <button class="btn-mode" id="btnModeDrive" onclick="setRobotMode(1)">REGULAR DRIVE</button>
     </div>
   </div>
 
@@ -258,7 +283,16 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
   </div>
 
   <div class="card">
-    <div class="buzzer-row">
+    <div class="card-title">Hardware & Balance Settings</div>
+    <div class="buzzer-row" style="margin-bottom:8px">
+      <span class="buzzer-label">Invert Motor Direction</span>
+      <label class="toggle">
+        <input type="checkbox" id="invertToggle">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+    <div class="buzzer-row" style="margin-bottom:8px">
       <span class="buzzer-label">Buzzer</span>
       <label class="toggle">
         <input type="checkbox" id="buzzerToggle" checked>
@@ -266,6 +300,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
         <span class="toggle-thumb"></span>
       </label>
     </div>
+    <button class="btn-action" onclick="triggerCalibrate()">Zero / Calibrate Upright Balance</button>
   </div>
 
 </div>
@@ -276,11 +311,67 @@ const state = {
   joyX: 0, joyY: 0,
   speed: 70,
   buzzer: true,
+  invertMotors: false,
   lastSent: { joyX: null, joyY: null, speed: null, buzzer: null },
   expression: 'EYE_NORMAL',
   mode: 'BALANCE',
   connected: false,
 };
+
+function setRobotMode(m) {
+  state.mode = m === 0 ? 'BALANCE' : 'DRIVE';
+  updateModeBtns(m);
+  sendImmediate({ mode: m });
+}
+
+function toggleRobotMode() {
+  setRobotMode(state.mode === 'BALANCE' ? 1 : 0);
+}
+
+function updateModeBtns(m) {
+  const isBal = m === 0;
+  const badge = document.getElementById('modeBadge');
+  if (badge) {
+    badge.textContent = isBal ? 'BALANCE' : 'DRIVE';
+    badge.className = 'mode-badge ' + (isBal ? 'balance' : 'drive');
+  }
+  const bBal = document.getElementById('btnModeSegway');
+  const bDrv = document.getElementById('btnModeDrive');
+  if (bBal && bDrv) {
+    bBal.className = 'btn-mode' + (isBal ? ' active balance' : '');
+    bDrv.className = 'btn-mode' + (!isBal ? ' active drive' : '');
+  }
+}
+
+function triggerCalibrate() {
+  if (confirm('Hold the robot vertically upright at its balance point, then press OK.')) {
+    sendImmediate({ calibrate: true });
+  }
+}
+
+async function sendImmediate(extra) {
+  try {
+    await fetch('/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({
+        joyX: state.joyX,
+        joyY: state.joyY,
+        speed: state.speed,
+        buzzer: state.buzzer,
+        invertMotors: state.invertMotors
+      }, extra))
+    });
+  } catch (_) {}
+}
+
+const invertToggle = document.getElementById('invertToggle');
+if (invertToggle) {
+  invertToggle.addEventListener('change', () => {
+    state.invertMotors = invertToggle.checked;
+    sendImmediate({ invertMotors: state.invertMotors });
+  });
+}
 
 function switchTab(which) {
   const isJoy = which === 'joy';
@@ -433,12 +524,9 @@ async function pollTelemetry() {
     document.getElementById('tMotR').textContent  = d.motorR;
 
     const badge = document.getElementById('modeBadge');
-    if (d.mode === 0) {
-      badge.textContent = 'BALANCE';
-      badge.className = 'mode-badge balance';
-    } else {
-      badge.textContent = 'DRIVE';
-      badge.className = 'mode-badge drive';
+    if (d.mode !== undefined) {
+      state.mode = d.mode === 0 ? 'BALANCE' : 'DRIVE';
+      updateModeBtns(d.mode);
     }
 
     if (d.buzzerEnabled !== undefined && buzzerToggle.checked !== d.buzzerEnabled) {
@@ -772,16 +860,26 @@ static void handleControl() {
         return body.substring(idx).startsWith("true");
     };
 
-    int x = constrain(getInt("joyX"),  -100, 100);
-    int y = constrain(getInt("joyY"),  -100, 100);
-    int s = constrain(getInt("speed"),    0, 100);
-    bool bz = getBool("buzzer");
-
-    g_cmd->joyX          = x;
-    g_cmd->joyY          = y;
-    g_cmd->speed         = s;
-    g_cmd->buzzerEnabled = bz;
-    g_cmd->updated       = true;
+    if (body.indexOf("\"joyX\":") >= 0) {
+        g_cmd->joyX = constrain(getInt("joyX"), -100, 100);
+        g_cmd->joyY = constrain(getInt("joyY"), -100, 100);
+    }
+    if (body.indexOf("\"speed\":") >= 0) {
+        g_cmd->speed = constrain(getInt("speed"), 0, 100);
+    }
+    if (body.indexOf("\"buzzer\":") >= 0) {
+        g_cmd->buzzerEnabled = getBool("buzzer");
+    }
+    if (body.indexOf("\"mode\":") >= 0) {
+        g_cmd->requestedMode = getInt("mode");
+    }
+    if (body.indexOf("\"invertMotors\":") >= 0) {
+        g_cmd->invertMotors = getBool("invertMotors");
+    }
+    if (body.indexOf("\"calibrate\":") >= 0) {
+        g_cmd->triggerCalib = getBool("calibrate");
+    }
+    g_cmd->updated = true;
 
     httpServer.sendHeader("Access-Control-Allow-Origin", "*");
     httpServer.send(200, "application/json", "{\"ok\":true}");
@@ -809,6 +907,16 @@ static void handleNotFound() {
 
 void webserver_init(WebCommand* cmd) {
     g_cmd = cmd;
+    if (g_cmd) {
+        g_cmd->joyX          = 0;
+        g_cmd->joyY          = 0;
+        g_cmd->speed         = 70;
+        g_cmd->buzzerEnabled = true;
+        g_cmd->requestedMode = -1;
+        g_cmd->invertMotors  = false;
+        g_cmd->triggerCalib  = false;
+        g_cmd->updated       = false;
+    }
 }
 
 void webserver_start() {

@@ -245,14 +245,21 @@ int balance_compute(float forwardBias) {
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
     if (s_pidIntegral < -PID_INTEGRAL_MAX) s_pidIntegral = -PID_INTEGRAL_MAX;
 
-    // Derivative term
-    float derivative = (dt > 0.0f) ? ((error - s_pidPrevError) / dt) : 0.0f;
-    s_pidPrevError = error;
+    // Derivative term: Use calibrated gyroRate directly
+    // Gyroscope provides instantaneous angular rate d(theta)/dt with zero numerical differentiation noise
+    float derivative = s_gyroRate;
 
     // Compute PID total output
     float output = (PID_KP * error)
-                 + (PID_KI * s_pidIntegral)
-                 + (PID_KD * derivative);
+                 + (PID_KD * derivative)
+                 + (PID_KI * s_pidIntegral);
+
+    // Static friction compensation: add minimum motor starting torque
+    if (output > 0.0f) {
+        output += MOTOR_MIN_SPEED;
+    } else if (output < 0.0f) {
+        output -= MOTOR_MIN_SPEED;
+    }
 
     // Clamp output within allowable motor limits
     if (output >  PID_OUTPUT_MAX) output =  PID_OUTPUT_MAX;

@@ -208,6 +208,33 @@ void loop() {
         }
     }
 
+    // ---------------------------------------------------------
+    // 1b. Check Web Dashboard Commands (Mode switch / Calibrate)
+    // ---------------------------------------------------------
+    if (g_webCmd.requestedMode >= 0) {
+        g_mode = (RobotMode)g_webCmd.requestedMode;
+        g_webCmd.requestedMode = -1;
+        if (g_mode == MODE_BALANCE_SEGWAY) {
+            balance_reset_pid();
+        }
+        buzzer_mode_changed(g_mode);
+        display_show_mode_info(g_mode, g_obstacleEnabled, buzzer_is_enabled());
+        g_showModeInfo = true;
+        g_modeInfoTimer = now;
+        Serial.print("[Web] Switched mode to ");
+        Serial.println(g_mode == MODE_BALANCE_SEGWAY ? "BALANCE" : "DRIVE");
+    }
+
+    if (g_webCmd.triggerCalib) {
+        g_webCmd.triggerCalib = false;
+        motors_stop();
+        display_show_text("Calibrating...", "Hold Upright!");
+        balance_calibrate();
+        display_show_text("Calibrated!", "Balance Set");
+        delay(600);
+        Serial.println("[Web] Balance recalibrated to upright!");
+    }
+
     if (g_showModeInfo && (now - g_modeInfoTimer) >= DISPLAY_MODE_SHOW_MS) {
         g_showModeInfo = false;
     }
@@ -255,6 +282,12 @@ void loop() {
             int turnOffset = g_webCmd.joyX * 40 / 100;
             motorL = baseSpeed + turnOffset;
             motorR = baseSpeed - turnOffset;
+
+            if (g_webCmd.invertMotors) {
+                motorL = -motorL;
+                motorR = -motorR;
+            }
+
             motors_set(motorL, motorR);
         }
 
@@ -312,6 +345,12 @@ void loop() {
 
             motorL = fwd + turn;
             motorR = fwd - turn;
+
+            if (g_webCmd.invertMotors) {
+                motorL = -motorL;
+                motorR = -motorR;
+            }
+
             motors_set(motorL, motorR);
         }
     }

@@ -27,6 +27,9 @@ struct WebCommand {
     int  joyY;           // -100 to 100 | Reverse(-) / Forward(+)
     int  speed;          // 0 to 100    | Speed percentage
     bool buzzerEnabled;  // true = buzzer active
+    int  requestedMode;  // -1 = no change, 0 = MODE_BALANCE_SEGWAY, 1 = MODE_REGULAR_DRIVE
+    bool invertMotors;   // true = invert motor direction
+    bool triggerCalib;   // true = trigger recalibration
     bool updated;        // true = new command received
 };
 
