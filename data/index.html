@@ -1,0 +1,375 @@
+﻿// ============================================================
+static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>RoboBot Dashboard</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  :root {
+    --bg:#0a0a0f; --card:#12121a; --border:#1e1e2e;
+    --green:#00ff88; --blue:#00cfff; --red:#ff4466;
+    --text:#e0e0f0; --muted:#555577;
+    --glow-green:0 0 12px rgba(0,255,136,0.35);
+    --glow-blue:0 0 12px rgba(0,207,255,0.35);
+  }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    user-select:none; -webkit-user-select:none;
+    display:flex; justify-content:center;
+    min-height:100vh; padding:12px;
+  }
+  .app { width:100%; max-width:440px; display:flex; flex-direction:column; gap:10px; }
+
+  .header {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 4px;
+  }
+  .header h1 { font-size:1.25rem; font-weight:700; color:var(--green); letter-spacing:.05em; }
+  .mode-badge {
+    padding:4px 10px; border-radius:999px; font-size:.72rem; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; border:1px solid transparent;
+  }
+  .mode-badge.balance { background:rgba(0,255,136,.12); color:var(--green); border-color:var(--green); box-shadow:var(--glow-green); }
+  .mode-badge.drive   { background:rgba(0,207,255,.12); color:var(--blue);  border-color:var(--blue);  box-shadow:var(--glow-blue); }
+
+  .card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:12px;
+  }
+  .card-title {
+    font-size:.7rem; font-weight:600; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--muted); margin-bottom:8px;
+  }
+
+  .row1 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .eye-wrap { display:flex; justify-content:center; align-items:center; }
+  #eyeCanvas { width:100%; height:auto; max-width:180px; border-radius:8px; background:#000; }
+
+  .telem-grid { display:flex; flex-direction:column; gap:6px; }
+  .telem-row  { display:flex; justify-content:space-between; align-items:center; }
+  .telem-label{ font-size:.78rem; color:var(--muted); }
+  .telem-val  { font-size:.85rem; font-weight:700; font-family:'Courier New',monospace; color:var(--blue); }
+
+  .tabs { display:flex; gap:6px; margin-bottom:10px; }
+  .tab {
+    flex:1; padding:7px; border:1px solid var(--border); border-radius:8px;
+    background:transparent; color:var(--muted); font-size:.8rem; font-weight:600;
+    cursor:pointer; transition:all .15s;
+  }
+  .tab.active { background:rgba(0,255,136,.12); color:var(--green); border-color:var(--green); }
+
+  .joy-wrap { display:flex; justify-content:center; align-items:center; padding:8px 0; }
+  #joyBase {
+    position:relative; width:170px; height:170px; border-radius:50%;
+    background:rgba(255,255,255,.03); border:2px solid var(--border);
+    touch-action:none; cursor:grab;
+  }
+  #joyBase.active { border-color:var(--green); box-shadow:var(--glow-green); }
+  #joyKnob {
+    position:absolute; width:56px; height:56px; border-radius:50%;
+    background:var(--green); top:50%; left:50%;
+    transform:translate(-50%,-50%); box-shadow:var(--glow-green);
+    pointer-events:none; transition:transform .05s;
+  }
+
+  .dpad {
+    display:grid; grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(3,52px); gap:6px; max-width:210px; margin:0 auto;
+  }
+  .dpad-btn {
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.05); border:1px solid var(--border);
+    border-radius:10px; font-size:1.1rem; color:var(--text);
+    cursor:pointer; -webkit-user-select:none; user-select:none;
+    touch-action:none; transition:background .1s, transform .05s;
+  }
+  .dpad-btn:active, .dpad-btn.pressed {
+    background:rgba(0,255,136,.25); border-color:var(--green);
+    color:var(--green); transform:scale(.95);
+  }
+  .dpad-stop { color:var(--red); border-color:rgba(255,68,102,.3); }
+  .dpad-stop:active, .dpad-stop.pressed { background:rgba(255,68,102,.25); border-color:var(--red); color:var(--red); }
+
+  .slider-row { display:flex; align-items:center; gap:10px; }
+  .slider-label { font-size:.78rem; color:var(--muted); min-width:32px; }
+  input[type=range] {
+    flex:1; -webkit-appearance:none; height:6px;
+    border-radius:3px; background:var(--border); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:20px; height:20px;
+    border-radius:50%; background:var(--green);
+    box-shadow:var(--glow-green); cursor:pointer;
+  }
+  .slider-val {
+    font-family:'Courier New',monospace; font-size:.85rem;
+    color:var(--green); min-width:36px; text-align:right;
+  }
+
+  .buzzer-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; }
+  .buzzer-label { font-size:.85rem; }
+  .toggle { position:relative; width:52px; height:28px; cursor:pointer; }
+  .toggle input { opacity:0; width:0; height:0; }
+  .toggle-track {
+    position:absolute; inset:0; background:#222; border-radius:999px;
+    transition:background .2s; border:1px solid var(--border);
+  }
+  .toggle input:checked + .toggle-track { background:#00ff8833; border-color:var(--green); }
+  .toggle-thumb {
+    position:absolute; top:3px; left:3px; width:20px; height:20px;
+    border-radius:50%; background:#555; transition:all .2s; pointer-events:none;
+  }
+  .toggle input:checked ~ .toggle-thumb { left:27px; background:var(--green); box-shadow:var(--glow-green); }
+
+  .conn-dot {
+    width:8px; height:8px; border-radius:50%; background:#333;
+    display:inline-block; margin-right:6px; transition:background .3s;
+  }
+  .conn-dot.on { background:var(--green); box-shadow:var(--glow-green); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <h1>RoboBot</h1>
+    <div>
+      <span class="conn-dot" id="connDot"></span>
+      <span id="modeBadge" class="mode-badge balance">BALANCE</span>
+    </div>
+  </div>
+
+  <div class="row1">
+    <div class="card">
+      <div class="card-title">Robot Eye</div>
+      <div class="eye-wrap">
+        <canvas id="eyeCanvas" width="200" height="100"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Telemetry</div>
+      <div class="telem-grid">
+        <div class="telem-row">
+          <span class="telem-label">Angle</span>
+          <span class="telem-val" id="tAngle">-- deg</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">Distance</span>
+          <span class="telem-val" id="tDist">-- cm</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">Speed</span>
+          <span class="telem-val" id="tSpeed">--%</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">Motor L</span>
+          <span class="telem-val" id="tMotL">--</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">Motor R</span>
+          <span class="telem-val" id="tMotR">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab" id="tabJoy" onclick="switchTab('joy')">Joystick</button>
+      <button class="tab" id="tabBtn" onclick="switchTab('btn')">Buttons</button>
+    </div>
+
+    <div id="panelJoy">
+      <div class="joy-wrap">
+        <div id="joyBase">
+          <div id="joyKnob"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelBtn" style="display:none">
+      <div class="dpad">
+        <div></div>
+        <div class="dpad-btn" id="dUp"    data-dx="0"  data-dy="1">UP</div>
+        <div></div>
+        <div class="dpad-btn" id="dLeft"  data-dx="-1" data-dy="0">LEFT</div>
+        <div class="dpad-btn dpad-stop" id="dStop" data-dx="0" data-dy="0">STOP</div>
+        <div class="dpad-btn" id="dRight" data-dx="1"  data-dy="0">RIGHT</div>
+        <div></div>
+        <div class="dpad-btn" id="dDown"  data-dx="0"  data-dy="-1">DOWN</div>
+        <div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Speed</div>
+    <div class="slider-row">
+      <span class="slider-label">0%</span>
+      <input type="range" id="speedSlider" min="0" max="100" value="70">
+      <span class="slider-val" id="speedVal">70%</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="buzzer-row">
+      <span class="buzzer-label">Buzzer</span>
+      <label class="toggle">
+        <input type="checkbox" id="buzzerToggle" checked>
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// RoboBot Dashboard Client Script
+const state = {
+  joyX: 0, joyY: 0,
+  speed: 70,
+  buzzer: true,
+  lastSent: { joyX: null, joyY: null, speed: null, buzzer: null },
+  expression: 'EYE_NORMAL',
+  mode: 'BALANCE',
+  connected: false,
+};
+
+function switchTab(which) {
+  const isJoy = which === 'joy';
+  document.getElementById('tabJoy').classList.toggle('active', isJoy);
+  document.getElementById('tabBtn').classList.toggle('active', !isJoy);
+  document.getElementById('panelJoy').style.display = isJoy ? '' : 'none';
+  document.getElementById('panelBtn').style.display = isJoy ? 'none' : '';
+  localStorage.setItem('rbtab', which);
+  if (!isJoy) { state.joyX = 0; state.joyY = 0; }
+}
+
+(function initTab() {
+  const saved = localStorage.getItem('rbtab') || 'joy';
+  switchTab(saved);
+})();
+
+const speedSlider = document.getElementById('speedSlider');
+const speedValEl  = document.getElementById('speedVal');
+speedSlider.addEventListener('input', () => {
+  state.speed = parseInt(speedSlider.value);
+  speedValEl.textContent = state.speed + '%';
+});
+
+const buzzerToggle = document.getElementById('buzzerToggle');
+buzzerToggle.addEventListener('change', () => { state.buzzer = buzzerToggle.checked; });
+
+// Virtual Joystick
+(function initJoystick() {
+  const base   = document.getElementById('joyBase');
+  const knob   = document.getElementById('joyKnob');
+  const radius = 50;
+  let dragging = false;
+  let bRect;
+
+  function getPos(e) {
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX, y: src.clientY };
+  }
+
+  function move(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const { x, y } = getPos(e);
+    let dx = x - (bRect.left + bRect.width / 2);
+    let dy = y - (bRect.top  + bRect.height / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > radius) { dx = dx / dist * radius; dy = dy / dist * radius; }
+    knob.style.left = (50 + (dx / bRect.width  * 100)) + '%';
+    knob.style.top  = (50 + (dy / bRect.height * 100)) + '%';
+    state.joyX =  Math.round(dx / radius * 100);
+    state.joyY = -Math.round(dy / radius * 100);
+  }
+
+  function start(e) {
+    dragging = true;
+    bRect = base.getBoundingClientRect();
+    base.classList.add('active');
+    move(e);
+  }
+
+  function end() {
+    dragging = false;
+    base.classList.remove('active');
+    knob.style.left = '50%';
+    knob.style.top  = '50%';
+    state.joyX = 0;
+    state.joyY = 0;
+  }
+
+  base.addEventListener('mousedown',  start);
+  base.addEventListener('touchstart', start, { passive: false });
+  window.addEventListener('mousemove',  move);
+  window.addEventListener('touchmove',  move, { passive: false });
+  window.addEventListener('mouseup',  end);
+  window.addEventListener('touchend', end);
+})();
+
+// D-Pad Buttons
+(function initDPad() {
+  const dpadBtns = document.querySelectorAll('.dpad-btn');
+  let activeBtn = null;
+
+  function setDir(btn) {
+    if (!btn) { state.joyX = 0; state.joyY = 0; return; }
+    const dx = parseInt(btn.dataset.dx || 0);
+    const dy = parseInt(btn.dataset.dy || 0);
+    state.joyX = dx * 100;
+    state.joyY = dy * 100;
+  }
+
+  function press(e) {
+    e.preventDefault();
+    if (activeBtn) activeBtn.classList.remove('pressed');
+    activeBtn = e.currentTarget;
+    activeBtn.classList.add('pressed');
+    setDir(activeBtn);
+  }
+
+  function release() {
+    if (activeBtn) activeBtn.classList.remove('pressed');
+    activeBtn = null;
+    setDir(null);
+  }
+
+  dpadBtns.forEach(btn => {
+    btn.addEventListener('mousedown',  press);
+    btn.addEventListener('touchstart', press, { passive: false });
+  });
+  window.addEventListener('mouseup',  release);
+  window.addEventListener('touchend', release);
+})();
+
+// Periodic control command sender (100 ms interval)
+setInterval(async () => {
+  const payload = {
+    joyX:  state.joyX,
+    joyY:  state.joyY,
+    speed: state.speed,
+    buzzer: state.buzzer,
+  };
+  const changed = payload.joyX !== state.lastSent.joyX ||
+                  payload.joyY !== state.lastSent.joyY ||
+                  payload.speed !== state.lastSent.speed ||
+                  payload.buzzer !== state.lastSent.buzzer;
+  if (!changed && payload.joyX === 0 && payload.joyY === 0 &&
+      state.lastSent.joyX === 0 && state.lastSent.joyY === 0) return;
+
+  try {
+    await fetch('/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    Object.assign(state.lastSent, payload);
