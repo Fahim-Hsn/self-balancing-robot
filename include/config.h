@@ -18,16 +18,14 @@
 #define PIN_SDA     21
 #define PIN_SCL     22
 
-// L298N Mini Motor Driver
-// Left Motor
-#define PIN_MOTOR_L_IN1  25   // Direction pin 1
-#define PIN_MOTOR_L_IN2  26   // Direction pin 2
-#define PIN_MOTOR_L_PWM  32   // Speed PWM
+// L298N Mini Motor Driver (MX1508 4-pin direct PWM control)
+// Left Motor (MOTOR-A)
+#define PIN_MOTOR_L_IN1  25   // PWM Left Motor forward
+#define PIN_MOTOR_L_IN2  26   // PWM Left Motor reverse
 
-// Right Motor
-#define PIN_MOTOR_R_IN3  27   // Direction pin 1
-#define PIN_MOTOR_R_IN4  14   // Direction pin 2
-#define PIN_MOTOR_R_PWM  33   // Speed PWM
+// Right Motor (MOTOR-B)
+#define PIN_MOTOR_R_IN3  27   // PWM Right Motor forward
+#define PIN_MOTOR_R_IN4  14   // PWM Right Motor reverse
 
 // Ultrasonic Sensor HC-SR04
 #define PIN_TRIG    5         // Trigger output
@@ -45,9 +43,11 @@
 // ------------------------------------------------
 // ESP32 LEDC PWM CHANNELS
 // ------------------------------------------------
-#define PWM_CH_MOTOR_L   0    // Left motor channel
-#define PWM_CH_MOTOR_R   1    // Right motor channel
-#define PWM_CH_BUZZER    2    // Buzzer channel
+#define PWM_CH_MOTOR_L_IN1 0   // Left motor IN1 PWM channel
+#define PWM_CH_MOTOR_L_IN2 1   // Left motor IN2 PWM channel
+#define PWM_CH_MOTOR_R_IN3 2   // Right motor IN3 PWM channel
+#define PWM_CH_MOTOR_R_IN4 3   // Right motor IN4 PWM channel
+#define PWM_CH_BUZZER      4   // Buzzer channel
 #define PWM_FREQ_MOTOR   1000 // 1 kHz for motors
 #define PWM_RESOLUTION   8    // 8-bit resolution: 0 - 255
 

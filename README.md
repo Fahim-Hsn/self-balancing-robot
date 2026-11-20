@@ -47,12 +47,10 @@ Important: A common ground connection is strictly required between all power sup
 |---|---|---|---|---|
 | GPIO 21 | OLED (1.3") + MPU-6050 | SDA | Shared I2C Data line | 3.3V Logic |
 | GPIO 22 | OLED (1.3") + MPU-6050 | SCL | Shared I2C Clock line | 3.3V Logic |
-| GPIO 25 | L298N Mini Driver | IN1 (Left Motor) | Left motor direction 1 | 3.3V Logic |
-| GPIO 26 | L298N Mini Driver | IN2 (Left Motor) | Left motor direction 2 | 3.3V Logic |
-| GPIO 32 | L298N Mini Driver | PWM / EN A | Left motor speed control (LEDC Ch 0) | PWM (1 kHz) |
-| GPIO 27 | L298N Mini Driver | IN3 (Right Motor) | Right motor direction 1 | 3.3V Logic |
-| GPIO 14 | L298N Mini Driver | IN4 (Right Motor) | Right motor direction 2 | 3.3V Logic |
-| GPIO 33 | L298N Mini Driver | PWM / EN B | Right motor speed control (LEDC Ch 1) | PWM (1 kHz) |
+| GPIO 25 | L298N Mini Driver | IN1 (Motor A) | Left motor forward PWM | 3.3V Logic |
+| GPIO 26 | L298N Mini Driver | IN2 (Motor A) | Left motor reverse PWM | 3.3V Logic |
+| GPIO 27 | L298N Mini Driver | IN3 (Motor B) | Right motor forward PWM | 3.3V Logic |
+| GPIO 14 | L298N Mini Driver | IN4 (Motor B) | Right motor reverse PWM | 3.3V Logic |
 | GPIO 5 | HC-SR04 Ultrasonic | TRIG | Sensor trigger pulse output | 3.3V Logic |
 | GPIO 18 | HC-SR04 Ultrasonic | ECHO | Sensor echo input (Interrupt-driven) | 3.3V Logic |
 | GPIO 19 | 2-Leg Buzzer Module | + / SIG | Audio PWM tone output (LEDC Ch 2) | PWM |
