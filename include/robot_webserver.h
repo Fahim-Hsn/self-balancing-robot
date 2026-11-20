@@ -2,7 +2,7 @@
 
 /*
  * =====================================================
- * RoboBot - webserver.h
+ * RoboBot - robot_webserver.h
  * Web server module header file.
  * =====================================================
  * ESP32 WiFi Access Point + Captive Portal DNS server.
@@ -12,6 +12,9 @@
  */
 
 #include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 #include "config.h"
 
 // ------------------------------------------------

@@ -216,7 +216,7 @@ self balance car/
 |   |-- display.h          # U8g2 OLED and robot eye animation header
 |   |-- motors.h           # L298N LEDC hardware PWM motor control header
 |   |-- obstacle.h         # HC-SR04 interrupt ultrasonic header
-|   `-- webserver.h        # WiFi captive portal and web server header
+|   `-- robot_webserver.h  # WiFi captive portal and web server header
 |-- src/
 |   |-- main.cpp           # Main loop, mode handling, state machine
 |   |-- balance.cpp        # MPU-6050 complementary filter and PID algorithm

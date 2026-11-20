@@ -26,9 +26,8 @@ enum ObstacleLevel {
 
 // ------------------------------------------------
 // ISR PROTOTYPE
-// IRAM_ATTR: ISR must live in IRAM for fast access
 // ------------------------------------------------
-void IRAM_ATTR echoISR();
+void echoISR();
 
 // ------------------------------------------------
 // PUBLIC API

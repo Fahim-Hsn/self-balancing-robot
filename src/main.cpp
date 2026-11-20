@@ -18,7 +18,7 @@
 #include "obstacle.h"
 #include "balance.h"
 #include "display.h"
-#include "webserver.h"
+#include "robot_webserver.h"
 
 // ============================================================
 // GLOBAL STATE
