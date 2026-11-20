@@ -99,9 +99,9 @@ enum EyeExpression {
  * - Sluggish?       Increase KP
  * - Slow drift?     Increase KI slightly
  */
-#define PID_KP            24.0f   // Proportional gain (smooth, prevents violent vibration)
-#define PID_KI             0.3f   // Gentle integral gain for steady-state offset compensation
-#define PID_KD             1.2f   // Derivative gain (from low-pass filtered gyro rate)
+#define PID_KP            30.0f   // Proportional gain (responsive at tiny tilt for low-RPM N20)
+#define PID_KI             0.8f   // Integral gain for center-of-gravity trim
+#define PID_KD             1.4f   // Derivative gain (from low-pass filtered gyro rate)
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
 #define PID_OUTPUT_MAX    240.0f  // Max motor output
@@ -114,14 +114,14 @@ enum EyeExpression {
 // ------------------------------------------------
 // BALANCE SAFETY
 // ------------------------------------------------
-#define BALANCE_FALLEN_ANGLE  40.0f  // Angle cutoff: shut off motors if fallen
-#define BALANCE_WARN_ANGLE    20.0f  // Warning threshold for angry eyes
+#define BALANCE_FALLEN_ANGLE  30.0f  // Angle cutoff: shut off motors if fallen
+#define BALANCE_WARN_ANGLE    15.0f  // Warning threshold for angry eyes
 
 // ------------------------------------------------
 // MOTOR LIMITS
 // ------------------------------------------------
 #define MOTOR_MAX_SPEED   255    // Maximum PWM (0 - 255)
-#define MOTOR_MIN_SPEED    28    // Smooth starting PWM offset (no chatter)
+#define MOTOR_MIN_SPEED    36    // Starting PWM to overcome N20 gearbox friction
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)

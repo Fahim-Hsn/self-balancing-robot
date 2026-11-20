@@ -245,25 +245,24 @@ int balance_compute(float forwardBias) {
 
     // Velocity feedback (Speed Damping Loop):
     // Track filtered wheel speed from previous commands to prevent runaway drift
-    s_wheelSpeed = 0.95f * s_wheelSpeed + 0.05f * (float)s_lastOutput;
+    s_wheelSpeed = 0.96f * s_wheelSpeed + 0.04f * (float)s_lastOutput;
 
-    // Virtual tilt setpoint: when wheels roll forward, robot commands a slight
-    // backward tilt to brake forward translation and stay stationary in one spot.
-    float speedCorrection = s_wheelSpeed * 0.020f;
+    // Virtual tilt setpoint: gentle speed correction for low-RPM motors
+    float speedCorrection = s_wheelSpeed * 0.010f;
     float setpoint = PID_TARGET_ANGLE + s_targetTrim + forwardBias + speedCorrection;
 
     // Proportional term
     float error = s_angle - setpoint;
 
-    // Zone Integral: only accumulate when near upright (|error| < 3.5 deg)
+    // Zone Integral: only accumulate when near upright (|error| < 3.0 deg)
     // Leaks quickly when swinging to completely avoid integral windup overshoot
     float dt = s_lastDt;
     if (dt <= 0.001f || dt > 0.05f) dt = 0.005f;
 
-    if (fabsf(error) < 3.5f) {
+    if (fabsf(error) < 3.0f) {
         s_pidIntegral += error * dt;
     } else {
-        s_pidIntegral *= 0.90f;
+        s_pidIntegral *= 0.88f;
     }
 
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
@@ -278,17 +277,17 @@ int balance_compute(float forwardBias) {
                  + (s_pidKd * derivative)
                  + (s_pidKi * s_pidIntegral);
 
-    // Smooth friction compensation:
-    // Continuous soft curve eliminates violent square-wave vibration around zero
-    float absOut = fabsf(output);
-    if (absOut < 1.5f) {
-        output = 0.0f; // Quiet center zone
+    // Friction compensation with deadband quiet zone:
+    // When upright within +/-0.12 deg and moving slowly, output is 0 (zero vibration).
+    // Outside 0.12 deg, starting torque is applied immediately so low-RPM N20 motors
+    // react instantly before the robot tilts past the point of recovery!
+    if (fabsf(error) < 0.12f && fabsf(derivative) < 1.5f) {
+        output = 0.0f;
     } else {
-        float boost = s_motorMinSpeed * (1.0f - expf(-absOut / 12.0f));
         if (output > 0.0f) {
-            output += boost;
-        } else {
-            output -= boost;
+            output += s_motorMinSpeed;
+        } else if (output < 0.0f) {
+            output -= s_motorMinSpeed;
         }
     }
 
