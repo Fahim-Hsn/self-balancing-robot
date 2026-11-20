@@ -45,8 +45,8 @@
 // -----------------------------------------------------------------------
 
 // Calibration offsets subtracted from raw readings to remove bias
-static float s_gyroYOffset  = 0.0f; // Gyro Y bias (LSB)
-static float s_accelZOffset = 0.0f; // Accel Z bias (LSB)
+static float s_gyroYOffset   = 0.0f; // Gyro Y bias (LSB)
+static float s_pitchOffset   = 0.0f; // Pitch offset at vertical balance point (degrees)
 
 // Angle and gyro state
 static float s_angle    = 0.0f; // Current pitch estimate (degrees)
@@ -97,6 +97,19 @@ static void mpu_read_raw(int16_t &acX, int16_t &acY, int16_t &acZ,
     gyZ = (int16_t)((Wire.read() << 8) | Wire.read());
 }
 
+/**
+ * mpu_compute_raw_pitch - Compute pitch angle for vertical-mounted MPU-6050.
+ * On vertical chassis:
+ *   X points UP along chassis (+16384 LSB when vertical)
+ *   Z points FORWARD (out of PCB plane)
+ *   Pitch angle = atan2(-acZ, acX) * (180.0 / PI)
+ *   When upright: acZ = 0, acX = +16384 -> atan2(0, 16384) = 0.0 deg
+ *   When tilted forward: acZ is negative, -acZ is positive -> positive pitch angle
+ */
+static float mpu_compute_raw_pitch(int16_t acX, int16_t acZ) {
+    return atan2f(-(float)acZ, (float)acX) * (180.0f / (float)M_PI);
+}
+
 // -----------------------------------------------------------------------
 // balance_init()
 // Configures MPU-6050 registers (wake-up, DLPF, ranges)
@@ -120,12 +133,12 @@ void balance_init() {
 
 // -----------------------------------------------------------------------
 // balance_calibrate()
-// Collects 1000 samples to establish gyro bias and accel Z offset.
-// BLOCKING - call once in setup() only.
+// Collects 500 samples to establish gyro bias and upright balance angle.
+// User must hold the robot upright at its physical balance point!
 // -----------------------------------------------------------------------
 bool balance_calibrate() {
     Serial.println("[balance_calibrate] Starting calibration...");
-    Serial.println("  Keep the robot FLAT and STILL!");
+    Serial.println("  Hold the robot VERTICAL and STILL at its balance point!");
 
     // Discard initial readings during power stabilisation
     int16_t acX, acY, acZ, gyX, gyY, gyZ;
@@ -134,15 +147,15 @@ bool balance_calibrate() {
         delay(5);
     }
 
-    const int SAMPLES = 1000;
+    const int SAMPLES = 500;
     long sumGyY = 0;
-    long sumAcZ = 0;
+    float sumPitch = 0.0f;
 
     for (int i = 0; i < SAMPLES; i++) {
         mpu_read_raw(acX, acY, acZ, gyX, gyY, gyZ);
         sumGyY += gyY;
-        sumAcZ += acZ;
-        delay(3);
+        sumPitch += mpu_compute_raw_pitch(acX, acZ);
+        delay(4);
 
         if ((i + 1) % 100 == 0) {
             int remaining = SAMPLES - (i + 1);
@@ -151,21 +164,20 @@ bool balance_calibrate() {
         }
     }
 
-    // Gyro Y offset: average non-zero value is sensor bias
-    s_gyroYOffset = (float)sumGyY / SAMPLES;
+    // Gyro Y offset: bias calibration
+    s_gyroYOffset = (float)sumGyY / (float)SAMPLES;
 
-    // Accel Z offset: when flat and face-up, expected value is +16384 (1g)
-    float avgAcZ   = (float)sumAcZ / SAMPLES;
-    s_accelZOffset = avgAcZ - MPU_ACCEL_SCALE;
+    // Upright pitch offset: neutral center-of-mass balance point
+    s_pitchOffset = sumPitch / (float)SAMPLES;
 
-    // Initialise angle estimate to 0 (flat orientation at start)
+    // Initialise angle estimate to 0 (perfectly calibrated upright)
     s_angle      = 0.0f;
     s_lastMicros = micros();
     s_calibrated = true;
 
     Serial.println("[balance_calibrate] Done!");
-    Serial.print("  gyroY offset (LSB): "); Serial.println(s_gyroYOffset, 2);
-    Serial.print("  accelZ offset (LSB): "); Serial.println(s_accelZOffset, 2);
+    Serial.print("  gyroY bias offset (LSB): "); Serial.println(s_gyroYOffset, 2);
+    Serial.print("  upright balance pitch offset (deg): "); Serial.println(s_pitchOffset, 2);
     return true;
 }
 
@@ -189,15 +201,13 @@ void balance_update() {
     int16_t acX, acY, acZ, gyX, gyY, gyZ;
     mpu_read_raw(acX, acY, acZ, gyX, gyY, gyZ);
 
-    // Apply Z offset calibration
-    float acZcal = (float)acZ - s_accelZOffset;
-
-    // Calculate pitch angle from accelerometer (flat mounted sensor)
-    // Pitch = atan2(-acX, acZ) converted from radians to degrees
-    float accelAngle = atan2f(-(float)acX, acZcal) * (180.0f / (float)M_PI);
+    // Calculate raw pitch and subtract calibrated upright balance offset
+    float rawPitch = mpu_compute_raw_pitch(acX, acZ);
+    float accelAngle = rawPitch - s_pitchOffset;
 
     // Calibrated gyro pitch rate in degrees per second
-    s_gyroRate = ((float)gyY - s_gyroYOffset) / MPU_GYRO_SCALE;
+    // Inverted so positive rate corresponds with forward tilt
+    s_gyroRate = -((float)gyY - s_gyroYOffset) / MPU_GYRO_SCALE;
 
     // Complementary filter: blend gyro integration with accelerometer anchor
     // angle = alpha * (angle + gyroRate * dt) + (1 - alpha) * accelAngle

@@ -118,7 +118,7 @@ void setup() {
     balance_init();
     Serial.println("[Balance] MPU-6050 Initialised");
 
-    display_show_text("Calibrating...", "Keep still!");
+    display_show_text("Calibrating...", "Hold Upright!");
     balance_calibrate();
     Serial.println("[Balance] Calibration done");
 
@@ -306,6 +306,21 @@ void loop() {
             motorR = fwd - turn;
             motors_set(motorL, motorR);
         }
+    }
+
+    // ---------------------------------------------------------
+    // Debug telemetry printout to Serial (every 200 ms)
+    // ---------------------------------------------------------
+    static unsigned long s_lastDebugMs = 0;
+    if (now - s_lastDebugMs >= 200) {
+        s_lastDebugMs = now;
+        Serial.print(g_mode == MODE_BALANCE_SEGWAY ? "[Segway] " : "[Drive] ");
+        Serial.print("Angle: ");
+        Serial.print(angle, 1);
+        Serial.print(" deg | GyroRate: ");
+        Serial.print(balance_get_gyro_rate(), 1);
+        Serial.print(" deg/s | Motor: ");
+        Serial.println(motorL);
     }
 
     // ---------------------------------------------------------

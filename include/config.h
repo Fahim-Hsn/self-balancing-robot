@@ -99,9 +99,9 @@ enum EyeExpression {
  * - Sluggish?       Increase KP
  * - Slow drift?     Increase KI slightly
  */
-#define PID_KP            22.0f   // Proportional gain
-#define PID_KI           150.0f   // Integral gain
-#define PID_KD             1.2f   // Derivative gain
+#define PID_KP            16.0f   // Proportional gain (tuned for N20 motors)
+#define PID_KI             0.0f   // Integral gain (start at 0 for stable tuning)
+#define PID_KD             1.0f   // Derivative gain
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
 #define PID_OUTPUT_MAX    220.0f  // Max motor output
