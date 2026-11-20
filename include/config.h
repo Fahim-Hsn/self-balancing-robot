@@ -35,10 +35,10 @@
 #define PIN_BUZZER  19        // Active or passive buzzer
 
 // Push Buttons
-// Note: GPIO 34 and 35 are INPUT-ONLY on ESP32 (no internal pull-ups)
-// External 10k-ohm pull-up resistors are required.
-#define PIN_BTN_MODE      34  // Button 1: Mode switch
-#define PIN_BTN_OBSTACLE  35  // Button 2: Obstacle toggle
+// GPIO 32 and 33 support internal pull-ups (INPUT_PULLUP) without external resistors.
+// Note: GPIO 34 and 35 are input-only and require external 10k pull-up resistors.
+#define PIN_BTN_MODE      32  // Button 1: Mode switch (INPUT_PULLUP)
+#define PIN_BTN_OBSTACLE  33  // Button 2: Obstacle toggle (INPUT_PULLUP)
 
 // ------------------------------------------------
 // ESP32 LEDC PWM CHANNELS

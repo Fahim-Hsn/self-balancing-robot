@@ -54,8 +54,8 @@ Important: A common ground connection is strictly required between all power sup
 | GPIO 5 | HC-SR04 Ultrasonic | TRIG | Sensor trigger pulse output | 3.3V Logic |
 | GPIO 18 | HC-SR04 Ultrasonic | ECHO | Sensor echo input (Interrupt-driven) | 3.3V Logic |
 | GPIO 19 | 2-Leg Buzzer Module | + / SIG | Audio PWM tone output (LEDC Ch 2) | PWM |
-| GPIO 34 | Button 1 (Mode Switch) | Terminal 1 | External 10k pull-up to 3.3V, button to GND | 3.3V Logic |
-| GPIO 35 | Button 2 (Obstacle Toggle) | Terminal 1 | External 10k pull-up to 3.3V, button to GND | 3.3V Logic |
+| GPIO 32 | Button 1 (Mode Switch) | Terminal 1 | Internal INPUT_PULLUP, other terminal to GND | 3.3V Logic |
+| GPIO 33 | Button 2 (Obstacle Toggle) | Terminal 1 | Internal INPUT_PULLUP, other terminal to GND | 3.3V Logic |
 | 3.3V | MPU-6050, Pull-Ups | VCC | 3.3V regulated power rail | 3.3V DC |
 | 5V / VIN | OLED, HC-SR04, Buzzer | VCC | 5V regulated logic power rail | 5V DC |
 | GND | All Modules | GND | Common ground connection rail | 0V Reference |

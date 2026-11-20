@@ -51,12 +51,13 @@ static AvoidState    s_avoidState = AVOID_IDLE;
 static unsigned long s_avoidTimer = 0;
 
 // ============================================================
-// BUTTON DEBOUNCE
-// GPIO 34 and 35 are input-only with external 10k-ohm pull-ups.
-// LOW = pressed (pull-up holds it HIGH when open)
+// BUTTON DEBOUNCE & STATE TRACKING
+// Edge-triggered: triggers only on HIGH -> LOW transition.
 // ============================================================
 static unsigned long s_lastBtnModeMs = 0;
 static unsigned long s_lastBtnObsMs  = 0;
+static int           s_prevBtnMode   = HIGH;
+static int           s_prevBtnObs    = HIGH;
 
 // ============================================================
 // HELPER: expressionName()
@@ -143,9 +144,9 @@ void setup() {
     // 12. Play startup melody
     buzzer_startup_melody();
 
-    // Configure push button inputs (external pull-ups required on GPIO 34/35)
-    pinMode(PIN_BTN_MODE,     INPUT);
-    pinMode(PIN_BTN_OBSTACLE, INPUT);
+    // Configure push button inputs with internal pull-ups
+    pinMode(PIN_BTN_MODE,     INPUT_PULLUP);
+    pinMode(PIN_BTN_OBSTACLE, INPUT_PULLUP);
 
     g_lastIdleMs = millis();
     Serial.println("[Setup] Complete - entering main loop");
@@ -159,14 +160,17 @@ void loop() {
     unsigned long now = millis();
 
     // ---------------------------------------------------------
-    // 1. Read Buttons (debounced)
+    // 1. Read Buttons (strict edge-triggered debouncing)
     // ---------------------------------------------------------
     {
-        // Mode toggle button (GPIO 34)
-        if ((now - s_lastBtnModeMs) >= BUTTON_DEBOUNCE_MS) {
-            if (digitalRead(PIN_BTN_MODE) == LOW) {
-                s_lastBtnModeMs = now;
+        // Mode toggle button (Button 1)
+        int curMode = digitalRead(PIN_BTN_MODE);
+        if (curMode != s_prevBtnMode && (now - s_lastBtnModeMs) >= BUTTON_DEBOUNCE_MS) {
+            s_lastBtnModeMs = now;
+            s_prevBtnMode = curMode;
 
+            // Only trigger on falling edge (HIGH -> LOW = pressed)
+            if (curMode == LOW) {
                 if (g_mode == MODE_BALANCE_SEGWAY) {
                     g_mode = MODE_REGULAR_DRIVE;
                 } else {
@@ -184,10 +188,14 @@ void loop() {
             }
         }
 
-        // Obstacle detection toggle button (GPIO 35)
-        if ((now - s_lastBtnObsMs) >= BUTTON_DEBOUNCE_MS) {
-            if (digitalRead(PIN_BTN_OBSTACLE) == LOW) {
-                s_lastBtnObsMs = now;
+        // Obstacle detection toggle button (Button 2)
+        int curObs = digitalRead(PIN_BTN_OBSTACLE);
+        if (curObs != s_prevBtnObs && (now - s_lastBtnObsMs) >= BUTTON_DEBOUNCE_MS) {
+            s_lastBtnObsMs = now;
+            s_prevBtnObs = curObs;
+
+            // Only trigger on falling edge (HIGH -> LOW = pressed)
+            if (curObs == LOW) {
                 g_obstacleEnabled = !g_obstacleEnabled;
                 obstacle_set_enabled(g_obstacleEnabled);
                 display_show_mode_info(g_mode, g_obstacleEnabled, buzzer_is_enabled());
