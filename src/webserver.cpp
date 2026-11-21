@@ -329,33 +329,33 @@ static const char DASHBOARD_HTML[] PROGMEM = R"rawliteral(
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Kp (Stiffness / Power):</span>
-        <strong id="kpVal">30.0</strong>
+        <strong id="kpVal">8.0</strong>
       </div>
-      <input type="range" id="kpSlider" min="10" max="60" step="0.5" value="30" oninput="onPidInput()">
+      <input type="range" id="kpSlider" min="1" max="35" step="0.5" value="8" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Kd (Damping / Smoothness):</span>
-        <strong id="kdVal">1.4</strong>
+        <strong id="kdVal">0.5</strong>
       </div>
-      <input type="range" id="kdSlider" min="0" max="4.0" step="0.1" value="1.4" oninput="onPidInput()">
+      <input type="range" id="kdSlider" min="0" max="3.0" step="0.05" value="0.5" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Ki (Drift / Offset Fix):</span>
-        <strong id="kiVal">0.80</strong>
+        <strong id="kiVal">0.0</strong>
       </div>
-      <input type="range" id="kiSlider" min="0" max="3.0" step="0.05" value="0.8" oninput="onPidInput()">
+      <input type="range" id="kiSlider" min="0" max="2.0" step="0.05" value="0" oninput="onPidInput()">
     </div>
 
     <div style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:2px">
         <span>Min Motor Torque (Deadband):</span>
-        <strong id="minSpdVal">36</strong>
+        <strong id="minSpdVal">22</strong>
       </div>
-      <input type="range" id="minSpdSlider" min="15" max="60" step="1" value="36" oninput="onPidInput()">
+      <input type="range" id="minSpdSlider" min="10" max="50" step="1" value="22" oninput="onPidInput()">
     </div>
 
     <button class="btn-action" style="margin-top:0;background:var(--accent)" onclick="sendPidNow()">Apply PID Settings</button>

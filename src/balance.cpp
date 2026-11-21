@@ -280,10 +280,9 @@ int balance_compute(float forwardBias) {
                  + (s_pidKi * s_pidIntegral);
 
     // Friction / deadband compensation:
-    // Wide quiet zone: when within 0.5 deg AND gyro slow, stop motors.
-    // This prevents N20 gear chatter. Outside quiet zone, add starting torque
-    // so N20 overcomes gearbox static friction immediately.
-    if (fabsf(error) < 0.50f && fabsf(derivative) < 3.0f) {
+    // Narrow quiet zone for high-RPM motors: when within 0.25 deg AND gyro quiet, stop motors.
+    // Outside quiet zone, add low starting torque to smoothly start wheels without sudden kick.
+    if (fabsf(error) < 0.25f && fabsf(derivative) < 1.5f) {
         output = 0.0f;
     } else {
         if (output > 0.0f) {

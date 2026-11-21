@@ -89,31 +89,28 @@ enum EyeExpression {
 #define OBSTACLE_STOP_CM   15   // Distance below which vehicle stops/evades
 
 // ------------------------------------------------
-// PID CONTROLLER (N20 Low-RPM Motors)
+// PID CONTROLLER (High-RPM N20 Motors)
 // ------------------------------------------------
 /*
- * PID TUNING STRATEGY for N20 Low-RPM motors:
- *
- * Step 1: Set Ki=0, Kd=0. Tune Kp ONLY until robot oscillates slowly.
- * Step 2: If oscillating fast -> lower Kp. If falls without trying -> raise Kp.
- * Step 3: Once Kp gives slow gentle oscillation, add small Kd to damp it.
- * Step 4: Add tiny Ki last to fix steady lean.
- *
- * CURRENT TUNING: Start conservative - P only, no D, no I.
- * Kp=12 gives gentle correction without overshoot on slow N20 motors.
- * Raise Kp by 2 steps at a time if robot falls too slowly / barely reacts.
+ * Tuning Guidelines for High-RPM N20 Motors:
+ * - High-RPM gearboxes (e.g. 300-600 RPM) have low gear ratios and low friction.
+ * - They accelerate MUCH faster than low-RPM motors for the same PWM.
+ * - Keep Kp low (5.0 - 12.0) to prevent the robot from violently shooting away.
+ * - Keep PID_OUTPUT_MAX capped (120 - 140) so motor speed remains controllable.
+ * - Keep MOTOR_MIN_SPEED low (18 - 26) because high-RPM motors start easily.
+ * - Kd provides essential damping against high-speed overshoot.
  */
-#define PID_KP            16.0f   // Proportional gain
-#define PID_KI             0.0f   // Integral gain (tune last after stable)
-#define PID_KD             0.6f   // Derivative damping (now properly in-phase with gyro)
-#define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees, adjust with dashboard Trim)
+#define PID_KP             8.0f   // Low, gentle P for high-RPM motor
+#define PID_KI             0.0f   // Start zero (add 0.1-0.2 once stable)
+#define PID_KD             0.5f   // Essential derivative damping
+#define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
-#define PID_OUTPUT_MAX    230.0f  // Cap below 255 to prevent saturation oscillation
-#define PID_OUTPUT_MIN   -230.0f  // Min motor output
-#define PID_INTEGRAL_MAX   20.0f  // Anti-windup clamp
+#define PID_OUTPUT_MAX    135.0f  // CRITICAL: Cap speed (~53%) so it never rockets away
+#define PID_OUTPUT_MIN   -135.0f
+#define PID_INTEGRAL_MAX   15.0f
 
 // Segway drive: joystick Y maps to this max tilt bias (degrees)
-#define SEGWAY_MAX_TILT    4.0f
+#define SEGWAY_MAX_TILT    3.5f
 
 // ------------------------------------------------
 // BALANCE SAFETY
@@ -124,10 +121,8 @@ enum EyeExpression {
 // ------------------------------------------------
 // MOTOR LIMITS
 // ------------------------------------------------
-#define MOTOR_MAX_SPEED   255    // Maximum PWM (0 - 255)
-// N20 starting torque: raise if robot barely moves at small angles,
-// lower if it vibrates wildly when near upright
-#define MOTOR_MIN_SPEED    48    // Starting PWM to overcome N20 gearbox friction
+#define MOTOR_MAX_SPEED   150    // High-RPM speed limit
+#define MOTOR_MIN_SPEED    22    // Low starting PWM for low-friction high-RPM N20
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)
