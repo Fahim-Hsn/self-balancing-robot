@@ -127,8 +127,9 @@ void balance_init() {
     mpu_write_reg(MPU_REG_PWR_MGMT_1, 0x00);
     delay(100);
 
-    // Step 2: Set DLPF to ~43 Hz bandwidth to filter vibrations
-    mpu_write_reg(MPU_REG_CONFIG, 0x03);
+    // Step 2: Set DLPF to ~10 Hz bandwidth - aggressively filter vibration and gear noise
+    // 0x05 = 10 Hz: best for slow N20 motors where high-freq noise ruins PID derivative
+    mpu_write_reg(MPU_REG_CONFIG, 0x05);
 
     // Step 3: Gyroscope range = +/-250 deg/s (131 LSB per deg/s)
     mpu_write_reg(MPU_REG_GYRO_CONFIG, 0x00);
@@ -197,14 +198,16 @@ bool balance_calibrate() {
 bool balance_update() {
     if (!s_calibrated) return false;
 
-    // Enforce 5 ms interval (200 Hz fixed control frequency)
+    // Enforce 10 ms interval (100 Hz control frequency)
+    // 100 Hz is better for N20 slow motors - gives motor time to actually
+    // respond before the next correction overwrites it in the opposite direction.
     unsigned long now = micros();
     unsigned long elapsed = now - s_lastMicros;
 
-    if (elapsed < 5000UL) return false;
+    if (elapsed < 10000UL) return false;
 
-    // Guard against huge step if loop was stalled by WiFi/blocking calls (max 50ms)
-    if (elapsed > 50000UL) elapsed = 50000UL;
+    // Guard against huge step if loop was stalled by WiFi/blocking calls (max 80ms)
+    if (elapsed > 80000UL) elapsed = 80000UL;
     float dt = (float)elapsed * 1e-6f;
     s_lastMicros = now;
     s_lastDt     = dt;
@@ -277,11 +280,10 @@ int balance_compute(float forwardBias) {
                  + (s_pidKi * s_pidIntegral);
 
     // Friction / deadband compensation:
-    // Quiet zone: when nearly upright AND almost stationary, stop motors.
-    // This prevents N20 gear chatter and micro-oscillation when balanced.
-    // Outside quiet zone: immediately add starting torque so N20 reacts before
-    // the robot tilts past the recovery limit (~2 degrees for low-RPM motors).
-    if (fabsf(error) < 0.15f && fabsf(derivative) < 1.2f) {
+    // Wide quiet zone: when within 0.5 deg AND gyro slow, stop motors.
+    // This prevents N20 gear chatter. Outside quiet zone, add starting torque
+    // so N20 overcomes gearbox static friction immediately.
+    if (fabsf(error) < 0.50f && fabsf(derivative) < 3.0f) {
         output = 0.0f;
     } else {
         if (output > 0.0f) {
