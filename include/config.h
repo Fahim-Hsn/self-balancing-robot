@@ -103,13 +103,13 @@ enum EyeExpression {
  * Kp=12 gives gentle correction without overshoot on slow N20 motors.
  * Raise Kp by 2 steps at a time if robot falls too slowly / barely reacts.
  */
-#define PID_KP            12.0f   // Conservative P: avoid overshoot on slow N20 motors
-#define PID_KI             0.0f   // Start zero - add only after P is stable
-#define PID_KD             0.0f   // Start zero - D amplifies noise until P is tuned
+#define PID_KP            16.0f   // Proportional gain
+#define PID_KI             0.0f   // Integral gain (tune last after stable)
+#define PID_KD             0.6f   // Derivative damping (now properly in-phase with gyro)
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees, adjust with dashboard Trim)
 
-#define PID_OUTPUT_MAX    220.0f  // Cap below 255 to prevent saturation oscillation
-#define PID_OUTPUT_MIN   -220.0f  // Min motor output
+#define PID_OUTPUT_MAX    230.0f  // Cap below 255 to prevent saturation oscillation
+#define PID_OUTPUT_MIN   -230.0f  // Min motor output
 #define PID_INTEGRAL_MAX   20.0f  // Anti-windup clamp
 
 // Segway drive: joystick Y maps to this max tilt bias (degrees)
@@ -127,7 +127,7 @@ enum EyeExpression {
 #define MOTOR_MAX_SPEED   255    // Maximum PWM (0 - 255)
 // N20 starting torque: raise if robot barely moves at small angles,
 // lower if it vibrates wildly when near upright
-#define MOTOR_MIN_SPEED    55    // Starting PWM to overcome N20 gearbox friction
+#define MOTOR_MIN_SPEED    48    // Starting PWM to overcome N20 gearbox friction
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)

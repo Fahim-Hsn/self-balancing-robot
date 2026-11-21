@@ -220,8 +220,8 @@ bool balance_update() {
     float accelAngle = rawPitch - s_pitchOffset;
 
     // Calibrated gyro pitch rate in degrees per second
-    // Inverted so positive rate corresponds with forward tilt
-    s_gyroRate = -((float)gyY - s_gyroYOffset) / MPU_GYRO_SCALE;
+    // Positive rate corresponds with forward tilt angular velocity
+    s_gyroRate = ((float)gyY - s_gyroYOffset) / MPU_GYRO_SCALE;
 
     // Complementary filter: blend gyro integration with accelerometer anchor
     // angle = alpha * (angle + gyroRate * dt) + (1 - alpha) * accelAngle
