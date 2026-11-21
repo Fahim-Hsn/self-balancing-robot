@@ -48,7 +48,7 @@
 #define PWM_CH_MOTOR_R_IN3 2   // Right motor IN3 PWM channel
 #define PWM_CH_MOTOR_R_IN4 3   // Right motor IN4 PWM channel
 #define PWM_CH_BUZZER      4   // Buzzer channel
-#define PWM_FREQ_MOTOR  20000 // 20 kHz for motors (inaudible, smooth N20 torque)
+#define PWM_FREQ_MOTOR   2000 // 2 kHz for MX1508 (high torque, low switching loss, smooth N20 drive)
 #define PWM_RESOLUTION   8    // 8-bit resolution: 0 - 255
 
 // ------------------------------------------------
@@ -100,13 +100,13 @@ enum EyeExpression {
  * - Keep MOTOR_MIN_SPEED low (18 - 26) because high-RPM motors start easily.
  * - Kd provides essential damping against high-speed overshoot.
  */
-#define PID_KP             8.0f   // Low, gentle P for high-RPM motor
-#define PID_KI             0.0f   // Start zero (add 0.1-0.2 once stable)
-#define PID_KD             0.5f   // Essential derivative damping
+#define PID_KP            14.0f   // Balanced P for high-RPM motor
+#define PID_KI             0.0f   // Start zero
+#define PID_KD             0.7f   // Damping to suppress oscillation
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
-#define PID_OUTPUT_MAX    135.0f  // CRITICAL: Cap speed (~53%) so it never rockets away
-#define PID_OUTPUT_MIN   -135.0f
+#define PID_OUTPUT_MAX    180.0f  // Enough power to recover, but prevents runaway rocket speed
+#define PID_OUTPUT_MIN   -180.0f
 #define PID_INTEGRAL_MAX   15.0f
 
 // Segway drive: joystick Y maps to this max tilt bias (degrees)
@@ -121,8 +121,8 @@ enum EyeExpression {
 // ------------------------------------------------
 // MOTOR LIMITS
 // ------------------------------------------------
-#define MOTOR_MAX_SPEED   150    // High-RPM speed limit
-#define MOTOR_MIN_SPEED    22    // Low starting PWM for low-friction high-RPM N20
+#define MOTOR_MAX_SPEED   180    // High-RPM speed limit
+#define MOTOR_MIN_SPEED    35    // Solid starting torque so wheels reliably turn under robot weight
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)
