@@ -31,8 +31,10 @@ RobotMode     g_mode            = MODE_BALANCE_SEGWAY;
 bool          g_obstacleEnabled = true;
 
 // Latest command received from web dashboard
-// Defaults: speed 70%, buzzer enabled, joystick centered
-WebCommand    g_webCmd          = { 0, 0, 70, true, false };
+// Defaults: speed 70%, buzzer enabled, joystick centered, no mode change
+WebCommand    g_webCmd          = { 0, 0, 70, true, -1, false, false, false,
+                                    PID_KP, PID_KI, PID_KD, 0.0f,
+                                    MOTOR_MIN_SPEED, false };
 
 // Idle timer tracking joystick activity
 unsigned long g_lastIdleMs      = 0;

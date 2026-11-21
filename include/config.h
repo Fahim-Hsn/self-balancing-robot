@@ -48,7 +48,7 @@
 #define PWM_CH_MOTOR_R_IN3 2   // Right motor IN3 PWM channel
 #define PWM_CH_MOTOR_R_IN4 3   // Right motor IN4 PWM channel
 #define PWM_CH_BUZZER      4   // Buzzer channel
-#define PWM_FREQ_MOTOR   1000 // 1 kHz for motors
+#define PWM_FREQ_MOTOR  20000 // 20 kHz for motors (inaudible, smooth N20 torque)
 #define PWM_RESOLUTION   8    // 8-bit resolution: 0 - 255
 
 // ------------------------------------------------
@@ -89,39 +89,46 @@ enum EyeExpression {
 #define OBSTACLE_STOP_CM   15   // Distance below which vehicle stops/evades
 
 // ------------------------------------------------
-// PID CONTROLLER (N20 Motors)
+// PID CONTROLLER (N20 Low-RPM Motors)
 // ------------------------------------------------
 /*
  * Fine-Tuning Guidelines:
- * - Falls forward?  Decrease TARGET_ANGLE (-0.5 deg step)
- * - Falls backward? Increase TARGET_ANGLE (+0.5 deg step)
- * - Oscillates?     Decrease KP or increase KD
- * - Sluggish?       Increase KP
- * - Slow drift?     Increase KI slightly
+ * - Falls forward?  Decrease TARGET_ANGLE (use Angle Trim in dashboard, -0.5 deg step)
+ * - Falls backward? Increase TARGET_ANGLE (use Angle Trim in dashboard, +0.5 deg step)
+ * - Oscillates fast? Decrease KP or increase KD
+ * - Sluggish / falls slow? Increase KP
+ * - Slow drift in one direction? Increase KI slightly
+ *
+ * N20 Low-RPM motor strategy:
+ * High KP is essential - must react before tilt exceeds ~2 degrees.
+ * Low KD prevents derivative kick amplifying mechanical vibration.
+ * Ki stays very small until robot can balance, then tune it last.
  */
-#define PID_KP            30.0f   // Proportional gain (responsive at tiny tilt for low-RPM N20)
-#define PID_KI             0.8f   // Integral gain for center-of-gravity trim
-#define PID_KD             1.4f   // Derivative gain (from low-pass filtered gyro rate)
-#define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
+#define PID_KP            55.0f   // High P: N20 must react aggressively at first tilt
+#define PID_KI             0.3f   // Low I: accumulates only when near upright
+#define PID_KD             0.8f   // Moderate D: damps oscillation without amplifying noise
+#define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees, adjust with Trim)
 
-#define PID_OUTPUT_MAX    240.0f  // Max motor output
-#define PID_OUTPUT_MIN   -240.0f  // Min motor output
-#define PID_INTEGRAL_MAX   50.0f  // Anti-windup clamp
+#define PID_OUTPUT_MAX    255.0f  // Max motor output (full PWM)
+#define PID_OUTPUT_MIN   -255.0f  // Min motor output
+#define PID_INTEGRAL_MAX   30.0f  // Tight anti-windup: integral is small role for N20
 
 // Segway drive: joystick Y maps to this max tilt bias (degrees)
-#define SEGWAY_MAX_TILT    5.0f
+#define SEGWAY_MAX_TILT    4.0f
 
 // ------------------------------------------------
 // BALANCE SAFETY
 // ------------------------------------------------
-#define BALANCE_FALLEN_ANGLE  30.0f  // Angle cutoff: shut off motors if fallen
-#define BALANCE_WARN_ANGLE    15.0f  // Warning threshold for angry eyes
+#define BALANCE_FALLEN_ANGLE  35.0f  // Angle cutoff: shut off motors if fallen
+#define BALANCE_WARN_ANGLE    18.0f  // Warning threshold for angry eyes
 
 // ------------------------------------------------
 // MOTOR LIMITS
 // ------------------------------------------------
 #define MOTOR_MAX_SPEED   255    // Maximum PWM (0 - 255)
-#define MOTOR_MIN_SPEED    36    // Starting PWM to overcome N20 gearbox friction
+// N20 starting torque: raise if robot barely moves at small angles,
+// lower if it vibrates wildly when near upright
+#define MOTOR_MIN_SPEED    40    // Starting PWM to overcome N20 gearbox friction
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)
@@ -145,8 +152,9 @@ enum EyeExpression {
 #define MPU_ACCEL_SCALE  16384.0f  // +/-2g default: 16384 LSB/g
 #define MPU_GYRO_SCALE   131.0f    // +/-250 deg/s default: 131 LSB/(deg/s)
 
-// Complementary filter coefficient: 98% gyro, 2% accelerometer
-#define COMP_FILTER_ALPHA  0.98f
+// Complementary filter coefficient: 95% gyro, 5% accelerometer
+// Lower alpha corrects gyro drift faster - important for low-RPM motor balance
+#define COMP_FILTER_ALPHA  0.95f
 
 // ------------------------------------------------
 // DISPLAY CONFIGURATION

@@ -64,7 +64,6 @@ static float s_targetTrim    = 0.0f;     // Real-time target angle trim offset (
 static float s_motorMinSpeed = MOTOR_MIN_SPEED; // Starting torque deadband offset
 static float s_pidIntegral   = 0.0f;     // Accumulated integral term
 static float s_pidPrevError  = 0.0f;     // Previous error for derivative
-static float s_wheelSpeed    = 0.0f;     // Filtered wheel speed estimate for velocity damping
 static float s_gyroDamped    = 0.0f;     // Low-pass filtered gyro rate for vibration elimination
 static int   s_lastOutput    = 0;        // Previous motor output command
 static bool  s_calibrated    = false;    // Calibration status flag
@@ -230,7 +229,9 @@ bool balance_update() {
 
 // -----------------------------------------------------------------------
 // balance_compute(float forwardBias)
-// PID controller for balancing vehicle with velocity damping and deadband.
+// PID controller for balancing. Clean P+I+D with friction compensation.
+// Velocity damping removed: low-RPM N20 motors cannot afford the opposing
+// correction - it caused the robot to fall before recovery was possible.
 // -----------------------------------------------------------------------
 int balance_compute(float forwardBias) {
     // Cut off motors and reset PID if robot has fallen over
@@ -243,45 +244,44 @@ int balance_compute(float forwardBias) {
     if (forwardBias >  SEGWAY_MAX_TILT) forwardBias =  SEGWAY_MAX_TILT;
     if (forwardBias < -SEGWAY_MAX_TILT) forwardBias = -SEGWAY_MAX_TILT;
 
-    // Velocity feedback (Speed Damping Loop):
-    // Track filtered wheel speed from previous commands to prevent runaway drift
-    s_wheelSpeed = 0.96f * s_wheelSpeed + 0.04f * (float)s_lastOutput;
+    // Setpoint: target balance angle + user trim + joystick forward lean
+    float setpoint = PID_TARGET_ANGLE + s_targetTrim + forwardBias;
 
-    // Virtual tilt setpoint: gentle speed correction for low-RPM motors
-    float speedCorrection = s_wheelSpeed * 0.010f;
-    float setpoint = PID_TARGET_ANGLE + s_targetTrim + forwardBias + speedCorrection;
-
-    // Proportional term
+    // Error: how far from upright (positive = tilted forward)
     float error = s_angle - setpoint;
 
-    // Zone Integral: only accumulate when near upright (|error| < 3.0 deg)
-    // Leaks quickly when swinging to completely avoid integral windup overshoot
+    // dt clamped to safe range
     float dt = s_lastDt;
     if (dt <= 0.001f || dt > 0.05f) dt = 0.005f;
 
-    if (fabsf(error) < 3.0f) {
+    // Integral term: only accumulates when close to upright (zone integral)
+    // Prevents windup when fallen far; leaks slowly when tilted far
+    if (fabsf(error) < 2.5f) {
         s_pidIntegral += error * dt;
     } else {
-        s_pidIntegral *= 0.88f;
+        // Fast leak when far from balance point - prevents runaway
+        s_pidIntegral *= 0.80f;
     }
 
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
     if (s_pidIntegral < -PID_INTEGRAL_MAX) s_pidIntegral = -PID_INTEGRAL_MAX;
 
-    // Derivative term: Low-pass filtered gyro rate eliminates chassis & motor gear vibration chatter
-    s_gyroDamped = 0.70f * s_gyroDamped + 0.30f * s_gyroRate;
+    // Derivative: use lightly filtered gyro rate to suppress motor gear vibration
+    // Alpha 0.60 (was 0.70) - slightly more responsive to actual tilt changes
+    s_gyroDamped = 0.60f * s_gyroDamped + 0.40f * s_gyroRate;
     float derivative = s_gyroDamped;
 
-    // Compute PID total output using live gains
+    // PID output
     float output = (s_pidKp * error)
                  + (s_pidKd * derivative)
                  + (s_pidKi * s_pidIntegral);
 
-    // Friction compensation with deadband quiet zone:
-    // When upright within +/-0.12 deg and moving slowly, output is 0 (zero vibration).
-    // Outside 0.12 deg, starting torque is applied immediately so low-RPM N20 motors
-    // react instantly before the robot tilts past the point of recovery!
-    if (fabsf(error) < 0.12f && fabsf(derivative) < 1.5f) {
+    // Friction / deadband compensation:
+    // Quiet zone: when nearly upright AND almost stationary, stop motors.
+    // This prevents N20 gear chatter and micro-oscillation when balanced.
+    // Outside quiet zone: immediately add starting torque so N20 reacts before
+    // the robot tilts past the recovery limit (~2 degrees for low-RPM motors).
+    if (fabsf(error) < 0.15f && fabsf(derivative) < 1.2f) {
         output = 0.0f;
     } else {
         if (output > 0.0f) {
@@ -296,6 +296,20 @@ int balance_compute(float forwardBias) {
     if (output <  PID_OUTPUT_MIN) output =  PID_OUTPUT_MIN;
 
     s_lastOutput = (int)output;
+
+    // Detailed serial debug every 100ms (driven by caller frequency)
+    static unsigned long s_dbgMicros = 0;
+    unsigned long nowUs = micros();
+    if (nowUs - s_dbgMicros >= 100000UL) {
+        s_dbgMicros = nowUs;
+        Serial.printf("[PID] Angle:%.2f Set:%.2f Err:%.2f Gyro:%.2f | P:%.1f I:%.1f D:%.1f | Out:%d\n",
+            s_angle, setpoint, error, s_gyroRate,
+            s_pidKp * error,
+            s_pidKi * s_pidIntegral,
+            s_pidKd * derivative,
+            s_lastOutput);
+    }
+
     return (int)output;
 }
 
@@ -334,7 +348,6 @@ bool balance_is_tilting() {
 void balance_reset_pid() {
     s_pidIntegral  = 0.0f;
     s_pidPrevError = 0.0f;
-    s_wheelSpeed   = 0.0f;
     s_gyroDamped   = 0.0f;
     s_lastOutput   = 0;
 }
