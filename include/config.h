@@ -48,7 +48,7 @@
 #define PWM_CH_MOTOR_R_IN3 2   // Right motor IN3 PWM channel
 #define PWM_CH_MOTOR_R_IN4 3   // Right motor IN4 PWM channel
 #define PWM_CH_BUZZER      4   // Buzzer channel
-#define PWM_FREQ_MOTOR   2000 // 2 kHz for MX1508 (high torque, low switching loss, smooth N20 drive)
+#define PWM_FREQ_MOTOR   1000 // 1 kHz for MX1508 (standard Arduino PWM frequency, smooth torque)
 #define PWM_RESOLUTION   8    // 8-bit resolution: 0 - 255
 
 // ------------------------------------------------
@@ -89,28 +89,27 @@ enum EyeExpression {
 #define OBSTACLE_STOP_CM   15   // Distance below which vehicle stops/evades
 
 // ------------------------------------------------
-// PID CONTROLLER (High-RPM N20 Motors)
+// PID CONTROLLER (Tuned to Aslam Hossain Working Reference)
 // ------------------------------------------------
 /*
- * Tuning Guidelines for High-RPM N20 Motors:
- * - High-RPM gearboxes (e.g. 300-600 RPM) have low gear ratios and low friction.
- * - They accelerate MUCH faster than low-RPM motors for the same PWM.
- * - Keep Kp low (5.0 - 12.0) to prevent the robot from violently shooting away.
- * - Keep PID_OUTPUT_MAX capped (120 - 140) so motor speed remains controllable.
- * - Keep MOTOR_MIN_SPEED low (18 - 26) because high-RPM motors start easily.
- * - Kd provides essential damping against high-speed overshoot.
+ * Proven parameters from Aslam Hossain Self-Balancing Robot:
+ * - Kp = 20.0: Strong immediate proportional response
+ * - Ki = 0.7: Continuous integral term to eliminate steady-state tilt
+ * - Kd = 0.8: Derivative damping based on angle delta (no gyro phase issues)
+ * - MOTOR_MIN_SPEED = 0: Pure linear PWM (NO deadband jump that causes oscillation!)
+ * - Max PWM = 255: Full motor authority to catch fast falls
  */
-#define PID_KP            14.0f   // Balanced P for high-RPM motor
-#define PID_KI             0.0f   // Start zero
-#define PID_KD             0.7f   // Damping to suppress oscillation
+#define PID_KP            20.0f   // Proportional gain (from Aslam repo)
+#define PID_KI             0.7f   // Integral gain (from Aslam repo)
+#define PID_KD             0.8f   // Derivative gain (from Aslam repo)
 #define PID_TARGET_ANGLE   0.0f   // Balance setpoint (degrees)
 
-#define PID_OUTPUT_MAX    180.0f  // Enough power to recover, but prevents runaway rocket speed
-#define PID_OUTPUT_MIN   -180.0f
-#define PID_INTEGRAL_MAX   15.0f
+#define PID_OUTPUT_MAX    255.0f  // Full PWM output
+#define PID_OUTPUT_MIN   -255.0f
+#define PID_INTEGRAL_MAX   50.0f  // Anti-windup clamp
 
 // Segway drive: joystick Y maps to this max tilt bias (degrees)
-#define SEGWAY_MAX_TILT    3.5f
+#define SEGWAY_MAX_TILT    4.0f
 
 // ------------------------------------------------
 // BALANCE SAFETY
@@ -121,8 +120,8 @@ enum EyeExpression {
 // ------------------------------------------------
 // MOTOR LIMITS
 // ------------------------------------------------
-#define MOTOR_MAX_SPEED   180    // High-RPM speed limit
-#define MOTOR_MIN_SPEED    35    // Solid starting torque so wheels reliably turn under robot weight
+#define MOTOR_MAX_SPEED   255    // Full speed
+#define MOTOR_MIN_SPEED     0    // Pure linear PWM (NO artificial deadband jump!)
 
 // ------------------------------------------------
 // TIMING CONSTANTS (milliseconds)

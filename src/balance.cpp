@@ -63,8 +63,9 @@ static float s_pidKd         = PID_KD;
 static float s_targetTrim    = 0.0f;     // Real-time target angle trim offset (degrees)
 static float s_motorMinSpeed = MOTOR_MIN_SPEED; // Starting torque deadband offset
 static float s_pidIntegral   = 0.0f;     // Accumulated integral term
+static float s_pidPrevAngle = 0.0f;     // Previous angle for derivative calculation
 static float s_pidPrevError  = 0.0f;     // Previous error for derivative
-static float s_gyroDamped    = 0.0f;     // Low-pass filtered gyro rate for vibration elimination
+static float s_gyroDamped    = 0.0f;     // Filtered angle derivative for vibration elimination
 static int   s_lastOutput    = 0;        // Previous motor output command
 static bool  s_calibrated    = false;    // Calibration status flag
 
@@ -257,34 +258,31 @@ int balance_compute(float forwardBias) {
     float dt = s_lastDt;
     if (dt <= 0.001f || dt > 0.05f) dt = 0.005f;
 
-    // Integral term: only accumulates when close to upright (zone integral)
-    // Prevents windup when fallen far; leaks slowly when tilted far
-    if (fabsf(error) < 2.5f) {
+    // Integral term: accumulates near upright (anti-windup clamp)
+    if (fabsf(error) < 6.0f) {
         s_pidIntegral += error * dt;
     } else {
-        // Fast leak when far from balance point - prevents runaway
-        s_pidIntegral *= 0.80f;
+        s_pidIntegral *= 0.85f;
     }
 
     if (s_pidIntegral >  PID_INTEGRAL_MAX) s_pidIntegral =  PID_INTEGRAL_MAX;
     if (s_pidIntegral < -PID_INTEGRAL_MAX) s_pidIntegral = -PID_INTEGRAL_MAX;
 
-    // Derivative: use lightly filtered gyro rate to suppress motor gear vibration
-    // Alpha 0.60 (was 0.70) - slightly more responsive to actual tilt changes
-    s_gyroDamped = 0.60f * s_gyroDamped + 0.40f * s_gyroRate;
-    float derivative = s_gyroDamped;
+    // Derivative on angle measurement: change in angle per second
+    // Exactly matches the proven PID_v1 algorithm from Aslam Hossain robot!
+    float dAngle = (s_angle - s_pidPrevAngle) / dt;
+    s_pidPrevAngle = s_angle;
 
-    // PID output
+    // Light smoothing filter to suppress digital discretization noise
+    s_gyroDamped = 0.65f * s_gyroDamped + 0.35f * dAngle;
+
+    // Compute PID total output
     float output = (s_pidKp * error)
-                 + (s_pidKd * derivative)
-                 + (s_pidKi * s_pidIntegral);
+                 + (s_pidKi * s_pidIntegral)
+                 + (s_pidKd * s_gyroDamped);
 
-    // Friction / deadband compensation:
-    // Narrow quiet zone for high-RPM motors: when within 0.25 deg AND gyro quiet, stop motors.
-    // Outside quiet zone, add low starting torque to smoothly start wheels without sudden kick.
-    if (fabsf(error) < 0.25f && fabsf(derivative) < 1.5f) {
-        output = 0.0f;
-    } else {
+    // Optional deadband starting torque (0 by default = pure smooth PWM)
+    if (s_motorMinSpeed > 0.0f) {
         if (output > 0.0f) {
             output += s_motorMinSpeed;
         } else if (output < 0.0f) {
@@ -307,7 +305,7 @@ int balance_compute(float forwardBias) {
             s_angle, setpoint, error, s_gyroRate,
             s_pidKp * error,
             s_pidKi * s_pidIntegral,
-            s_pidKd * derivative,
+            s_pidKd * s_gyroDamped,
             s_lastOutput);
     }
 
@@ -349,6 +347,7 @@ bool balance_is_tilting() {
 void balance_reset_pid() {
     s_pidIntegral  = 0.0f;
     s_pidPrevError = 0.0f;
+    s_pidPrevAngle = s_angle;
     s_gyroDamped   = 0.0f;
     s_lastOutput   = 0;
 }
